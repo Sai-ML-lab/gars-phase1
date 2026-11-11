@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.DS_Store
+.env
+*.pyc
+# Keep small result JSON/CSV files and logs under results/ for reproducibility.
+results/checkpoints/
+results/model_cache/
+checkpoints/
+models/

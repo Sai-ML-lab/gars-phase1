@@ -1,0 +1,13 @@
+{
+  "timestamp_utc": "2026-11-11T16:41:28.710666+00:00",
+  "model_id": "hf-internal-testing/tiny-random-bert",
+  "device": "mps",
+  "loss": 0.6885843873023987,
+  "trainable_parameters": 2626,
+  "total_parameters": 90621,
+  "trainable_fraction": 0.02897783074563291,
+  "lora_gradient_tensor_count": 22,
+  "lora_gradient_norm_sum": 0.16423681962101,
+  "optimizer_step": "passed",
+  "note": "Integration smoke test only; not a research result."
+}

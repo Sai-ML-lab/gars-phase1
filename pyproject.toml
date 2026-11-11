@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gars-phase1"
+version = "0.1.0"
+description = "Research workspace for Gradient-Aware Per-Layer Adaptive Rank Scheduling"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "torch",
+  "transformers",
+  "peft",
+  "accelerate",
+  "datasets",
+  "numpy",
+  "pandas",
+  "scipy",
+  "scikit-learn",
+  "matplotlib",
+  "safetensors",
+  "sentencepiece",
+  "tqdm",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "jupyter",
+  "ipykernel",
+  "ruff",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

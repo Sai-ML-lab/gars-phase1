@@ -1,0 +1,69 @@
+{
+  "timestamp_utc": "2026-11-11T16:39:20.457429+00:00",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "macos_version": "26.6.2",
+  "machine": "arm64",
+  "python": "3.12.14 (main, Aug 12 2026, 13:57:54) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "pytorch": "2.15.0",
+  "package_versions": {
+    "transformers": "5.22.2",
+    "peft": "0.21.2",
+    "accelerate": "1.15.0",
+    "datasets": "5.2.0",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1"
+  },
+  "mps_built": true,
+  "mps_available": true,
+  "cuda_available": false,
+  "tests": [
+    {
+      "device": "mps",
+      "checks": {
+        "matrix_multiplication": {
+          "status": "passed",
+          "shape": [
+            32,
+            32
+          ]
+        },
+        "qr": {
+          "status": "passed",
+          "reconstruction_error": 8.912360499380156e-06
+        },
+        "svd": {
+          "status": "passed",
+          "reconstruction_error": 6.375126395141706e-05
+        },
+        "autograd_backward": {
+          "status": "passed",
+          "gradient_norm": 6.732324123382568
+        }
+      }
+    },
+    {
+      "device": "cpu",
+      "checks": {
+        "matrix_multiplication": {
+          "status": "passed",
+          "shape": [
+            32,
+            32
+          ]
+        },
+        "qr": {
+          "status": "passed",
+          "reconstruction_error": 4.865806204179535e-06
+        },
+        "svd": {
+          "status": "passed",
+          "reconstruction_error": 2.1344116248656064e-05
+        },
+        "autograd_backward": {
+          "status": "passed",
+          "gradient_norm": 6.73232364654541
+        }
+      }
+    }
+  ]
+}
