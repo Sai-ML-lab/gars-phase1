@@ -178,3 +178,33 @@ Highest priority:
 8. Inspect LAARA and IGU-LoRA preprints critically; do not rely on abstract-only claims.
 
 This file records a preliminary technical reading synthesis. It is not yet the final Chapter 2 literature review and should be refined after the student has personally read and annotated the critical papers.
+
+
+## 6. Corrections from additional primary-source verification
+
+### IGU-LoRA is peer-reviewed, not just an arXiv preprint
+The ICLR 2026 proceedings list **IGU-LoRA: Adaptive Rank Allocation via Integrated Gradients and Uncertainty-Aware Scoring** by Xuan Cui, HuiYue Li, Run Zeng, Yunfei Zhao, Jinrui Qian, Wei Duan, Bo Liu and Zhanpeng Zhou. The abstract says it aggregates within-layer Integrated Gradients into layer-level scores and uses an uncertainty-aware EMA/deviation scheme to stabilize rank selection. It is direct prior art for gradient-path sensitivity and uncertainty-aware rank allocation.  
+Primary record: [ICLR 2026 paper](https://proceedings.iclr.cc/paper_files/paper/2026/hash/407106f4b56040b2e8dcad75a6e461e5-Abstract-Conference.html). Full method and experiments still need reading.
+
+### Effective-rank definitions must not be mixed
+Roy and Vetterli (EUSIPCO 2007) define effective rank using the entropy of the normalized singular values:
+\[
+p_i=\frac{\sigma_i}{\sum_j\sigma_j},\qquad
+\operatorname{erank}(A)=\exp\left(-\sum_i p_i\log p_i\right).
+\]
+Source: [The Effective Rank: A Measure of Effective Dimensionality](https://doi.org/10.5281/zenodo.40328).
+
+FlexLoRA instead defines a normalized entropy over the **squared singular-value energy** distribution:
+\[
+q_i=\frac{\sigma_i^2}{\sum_j\sigma_j^2},\qquad
+H_2(A)=-\frac{1}{\log r}\sum_i q_i\log(q_i+\epsilon).
+\]
+These are related but not identical measures. If GARS uses a spectral-flatness statistic, specify which distribution is used, why it is appropriate, and do not call the two definitions interchangeable. A normalized entropy (H_2\) lies near 0 for concentrated energy and near 1 for a flat squared-energy spectrum (ignoring the small numerical epsilon).
+
+### Important GARS question after the prior-art comparison
+The proposal's mechanism currently appears closest to a combination of:
+- AdaLoRA / LAARA / GoRA / IGU-LoRA for gradient-derived importance;
+- FlexLoRA for singular-spectrum entropy-guided rank allocation;
+- PARA for QR-SVD and physically truncated post-hoc LoRA export.
+
+A credible GARS contribution therefore needs to be a carefully isolated, experimentally tested interaction between **adapter-factor gradient statistics**, **layer-specific squared-energy retention thresholds**, and **spectral concentration as a moderator of the relative benefit against matched-budget baselines**. The exact timing and optimizer-state correctness of the live gradients must be specified. Do not claim this interaction is new until the full papers and code of the closest methods have been checked.
