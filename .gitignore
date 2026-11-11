@@ -11,3 +11,34 @@ results/checkpoints/
 results/model_cache/
 checkpoints/
 models/
+
+# Python packaging
+*.egg-info/
+build/
+dist/
+
+# Environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.DS_Store
+
+# Credentials
+.env
+.env.*
+!.env.example
+
+# Datasets, model weights and checkpoints
+data/raw/
+data/processed/
+models/
+checkpoints/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+
+# Experiment tracking
+wandb/
+mlruns/
