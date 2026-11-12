@@ -448,3 +448,53 @@ The public implementation of GARS must separately demonstrate:
 - that rank resizing/optimizer state handling follows the described timing;
 - that exported tensors are physically smaller, not simply masked;
 - that the saved adapter reloads and gives equivalent outputs to the corresponding truncated dense update.
+
+
+## 11. Dataset and resource literature relevant to the approved proposal
+
+### 11.1 QLoRA — Dettmers et al. (NeurIPS 2023)
+Primary paper: https://arxiv.org/abs/2305.14314 · NeurIPS proceedings.
+
+QLoRA targets memory-efficient fine-tuning of quantized pretrained LLMs. Its central components are:
+- **NF4 (4-bit NormalFloat):** a 4-bit datatype designed for normally distributed pretrained weights.
+- **Double quantization:** quantizes the quantization constants themselves to reduce metadata overhead.
+- **Paged optimizers:** use unified-memory paging to mitigate memory spikes during optimizer updates.
+- **Backpropagation through a frozen 4-bit base:** pretrained weights are stored quantized, while gradients are propagated to train LoRA adapters; compute is performed in a higher precision (the paper uses bfloat16 in its main description).
+
+**Relevance to GARS.** QLoRA is a way to reduce memory for the frozen base model. It does not itself prune or reduce the dimensions/serialized size of LoRA adapter factors. Therefore, do not report base-model quantization as adapter compression. The original experiments are NVIDIA/CUDA-oriented; do not assume equivalent bitsandbytes QLoRA behavior on the user's Apple MPS environment without a separate compatibility test. For Phase 1, the DeBERTa/GPT-2 pilot can avoid QLoRA; use the M5 Max / remote GPU for quantized LLM scale-up if a working stack is available.
+
+### 11.2 GLUE — Wang et al. (ICLR 2019)
+Primary benchmark paper: https://openreview.net/forum?id=rJ4km2R5t7. A shorter same-title workshop paper appeared earlier in BlackboxNLP@EMNLP 2018 (DOI: https://doi.org/10.18653/v1/W18-5446); use the ICLR 2019 publication as the main benchmark reference and cite original dataset papers as well.
+
+GLUE comprises nine English sentence or sentence-pair NLU tasks, covering acceptability, sentiment, paraphrase/similarity, and natural-language inference. It includes a diagnostic dataset and an official evaluation platform; four tasks have privately held test data. RTE and SST-2 are useful smaller pilot tasks, but they represent different problems: RTE is NLI with premise/hypothesis pairs, and SST-2 is binary sentiment classification.
+
+**Relevance to GARS.** The first controlled pilot should use one fixed task and one fixed split; do not tune on the private test set. In an M.Tech Phase 1 experiment, it is acceptable to use the official training and validation split for model selection and report validation metrics, while preserving official test protocol where accessible. Cite the underlying task sources, not only the GLUE overview.
+
+### 11.3 CUAD — Hendrycks et al. (NeurIPS Datasets and Benchmarks 2021)
+Primary paper: https://arxiv.org/abs/2103.06268.
+
+CUAD is not a generic binary classification dataset. It contains **510 contracts and 13,101 expert-labelled clauses**, spanning **41 label categories** and **25 contract types**. Its primary task is to identify text spans in long contracts that correspond to a selected clause category—an extractive span prediction / question-answering formulation. The contracts range from a few pages to over one hundred pages. The paper uses sliding windows over long documents and reports AUPR, Precision@80% Recall and Precision@90% Recall due to the severe imbalance between relevant and irrelevant spans.
+
+**Relevance to GARS.** CUAD is a substantial task adaptation beyond the current short-text classification notebooks. To include it properly, GARS must be tested with an extractive QA/span objective, long-context preprocessing, document-level split, and span-level metrics. Converting CUAD into a simple yes/no classification dataset would change the task and should be described as a derived task rather than the original CUAD benchmark. CUAD is a stretch goal for the Phase 1 pilot, not a prerequisite for validating the core pruning algorithm.
+
+### 11.4 MedQuAD — Abacha and Demner-Fushman (BMC Bioinformatics 2019)
+Primary paper: https://doi.org/10.1186/s12859-019-3119-4.
+
+The paper introduces MedQuAD as a collection of **47,457 medical question–answer pairs** crawled from trusted NIH websites and enriched with focus, synonyms and question-type information. It also develops a **Recognizing Question Entailment (RQE)** approach: given a premise question, retrieve a less restrictive or entailed question whose stored answer can serve as a complete or partial answer. The paper separately constructs an 850-pair consumer-health-question/FAQ evaluation set with 405 positive and 445 negative pairs, where positive/negative labels are constructed from question focus/type matching and manually validated. That 850-pair RQE evaluation set is distinct from the full MedQuAD collection.
+
+**Relevance to GARS.** The proposal/notebook's binary relevance task—pair a question with its correct answer and sampled incorrect answers—is a project-specific derived formulation, not the original RQE task in the paper. Its negative construction and sampling policy must be documented. To prevent leakage, split source questions/FAQ records (and preferably their focus/topic groups) into train/validation/test *before* generating positive/negative pairs. Never randomly split generated pairs if the same source question or answer can appear in multiple partitions. Use a fixed negative-sampling seed and report the number of unique source questions, pairs and class balance per split.
+
+### 11.5 Consequence for Phase 1 dataset scope
+
+For a credible first controlled pilot, one GLUE task (DeBERTa-v3-base/RTE or GPT-2/SST-2) is the best starting point because the existing notebooks and baseline training code already cover those tasks. A second domain should be added only after the first experiment has:
+- a fixed and reproducible data split;
+- correct gradient capture and SVD energy criteria;
+- a matched physical adapter parameter budget;
+- physically truncated export and reload validation;
+- seed-level metrics.
+
+MedQuAD is a reasonable second domain if its pair-construction/split leakage is corrected. CUAD should be deferred unless there is enough time to implement and evaluate the original extractive QA formulation with document-level splits and span-level metrics. Do not claim that results on a derived binary CUAD label task equal evaluation on the original CUAD benchmark.
+
+## 12. Clarification about the GLUE reference
+
+The seed matrix lists the ICLR 2019 version of the GLUE overview, which is the version to cite as the main benchmark paper. A shorter workshop version with the same title was also published at BlackboxNLP@EMNLP 2018 (ACL Anthology W18-5446, DOI 10.18653/v1/W18-5446). These are separate proceedings records; do not accidentally cite the workshop record as the ICLR version or vice versa.
