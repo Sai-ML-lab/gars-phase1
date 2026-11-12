@@ -220,3 +220,98 @@ Do not promise three model scales or three domains in Phase 1 unless the runs ar
 - Do not begin scaling to Gemma/Llama until the small-model method passes these tests.
 
 This is the current evidence-based working plan. The final research gap and scope should be approved by the mentor after reviewing the closest prior art.
+
+
+## 10. Major prior-art update: Progressive PEFT and Aletheia
+
+The expanded review has now read the full text of two further 2026 papers that materially affect positioning.
+
+### Progressive PEFT (Research Square preprint, May 2026)
+This is the closest conceptual overlap located so far. It:
+- Computes a relative gradient score for each LoRA parameter: \(\|\nabla_pL\|/(\|p\|+\epsilon)\).
+- Applies a per-parameter EMA, module-level median aggregation, and a second EMA at module level.
+- Warm-starts for 50 steps and by default updates ranks every 200 steps.
+- Allocates layer ranks under a fixed/global budget using softmax or proportional score mappings.
+- Directly truncates A/B factors when rank decreases, zero-pads when it increases, and resets AdamW moments after each restructuring.
+- Evaluates low-resource Tigrinya sentiment and news classification using TiroBERTa, Afro-XLM-R and GPT-2 Small, five seeds and a multi-objective efficiency suite.
+
+This overlaps with GARS at the level of online gradient-based layer importance, dynamic per-layer rank changes, global budget coordination and optimizer-state reset. The main method-level distinction is the *mapping and pruning operation*: Progressive PEFT maps a smoothed relative-gradient module score to an integer rank and restructures by direct prefix truncation/zero-padding; GARS maps a normalized layer gradient statistic to a squared-energy retention threshold and derives retained rank through SVD of the LoRA update.
+
+This is a substantial overlap, not something to omit. It means we should not claim that GARS is the first gradient-driven per-layer rank scheduler. The proposed energy-threshold policy may still be a different algorithmic choice, but we need to show that it provides more than a cosmetic reparameterization of an existing score-to-rank policy.
+
+Two methodological cautions when discussing Progressive PEFT:
+- The preprint's statement that AdaLoRA lacks a global total-budget scheduler is not accurate; AdaLoRA explicitly uses a global budget scheduler over singular triplets. Compare the exact schedules and realized physical parameter counts rather than repeat the criticism.
+- SAP-PEFT floors/clips per-layer ranks but states that it does not perform a final rescaling because budget discrepancies are negligible. A reproduction should measure actual total physical parameters; do not assume exact budget preservation merely from the method label.
+
+### Aletheia (arXiv preprint, April 2026)
+Aletheia performs a five-batch gradient probe over backbone layer parameters, selects the top 50% of layers, then applies LoRA only in those layers with asymmetric attention/MLP ranks. It is a one-time pre-training **layer-selection** mechanism, not a dynamic rank-pruning method and not within-layer singular-value truncation.
+
+It is therefore adjacent prior art for gradient-based layer selection, but a different technical problem from GARS. Its paper reports a broad cross-architecture evaluation and 15–28% training speedup in its tested environment; treat those as author-reported preprint results, not universal guarantees.
+
+## 11. Revised research-gap position
+
+The evidence now supports three levels of claims:
+
+**Claims we must not make**
+- First gradient-aware rank allocation for LoRA.
+- First dynamic per-layer rank scheduler.
+- First use of LoRA A/B gradients for layer importance.
+- First use of squared spectral entropy or energy-based rank allocation.
+- First QR-SVD implementation for compact LoRA exports.
+- First structural rank pruning or physical adapter truncation.
+
+**A narrower candidate mechanism distinction**
+GARS's proposed score-to-threshold map is different from Progressive PEFT/LAARA's score-to-integer-rank mapping:
+1. Calculate a per-layer gradient statistic from the LoRA A/B factors.
+2. Normalize the statistics across layers.
+3. Convert each layer's normalized statistic into its own squared-Frobenius-energy retention threshold.
+4. Use reduced QR-SVD of the learned LoRA update to select the minimum rank satisfying that threshold (with a rank floor).
+5. Calibrate the base threshold to a fixed total *physical adapter parameter count*.
+
+This differs from Progressive PEFT (relative gradient per parameter → EMA/median/EMA → softmax rank; direct factor truncation) and LAARA (squared A/B gradient empirical Fisher → normalization/log/blend/vote → integer rank). It also differs from PARA (global singular-value threshold) and FlexLoRA (spectral-entropy-based prune/expand).
+
+**However, a method-level difference does not by itself establish research significance.** The Phase 1 contribution should be framed as an empirical question unless a clear advantage can be demonstrated:
+
+> At an exactly matched physical adapter-parameter budget, does gradient-conditioned per-layer squared-energy retention preserve task performance and deployment efficiency better than uniform local energy pruning, PARA-style global spectral thresholding, and gradient-score-to-rank policies such as Progressive PEFT/LAARA; and does a layer's spectral concentration predict when these policies differ?
+
+The more fundamental, potentially stronger research contribution is a **signal-reliability comparison**: how well do different layer-importance signals predict the performance loss caused by removing or truncating that layer's adapter, and how does this relationship change with the layer's singular-spectrum shape? Candidate signals include raw A/B gradient norms, relative gradient/parameter scores, EMA/Fisher statistics, integrated-gradient/SNR scores, activation norms, and perturbation-based sensitivity. GARS's energy-threshold rule can be evaluated as one policy resulting from that investigation.
+
+This framing avoids overstating novelty and is better aligned with the title's question “When and How Gradient Dynamics Should Guide LoRA Pruning.”
+
+## 12. Updated next steps
+
+### Immediate literature work
+1. Finish personal reading notes for LoRA, AdaLoRA, GoRA, FlexLoRA, PARA, LAARA and Progressive PEFT. For each, record one paragraph in your own words: its signal, timing, rank-update rule, budget, evidence and limitation.
+2. Read the negative-results GRPO paper from the ACL/author PDF if possible; we have verified its official metadata and read a full-text mirror, but did not obtain the official PDF's searchable full text in this session.
+3. Decide with the mentor whether the Phase 1 project should present GARS as a candidate energy-threshold algorithm within a comparative study, or make signal reliability the primary research contribution.
+
+### Implementation decision — freeze before more experiments
+Use a *single parent checkpoint* for the first allocation-policy experiment. Record gradients and activations from the same training run. Compare:
+- uncompressed LoRA parent;
+- uniform per-layer squared-energy pruning;
+- global PARA-style singular-value threshold;
+- GARS per-layer gradient-conditioned energy threshold;
+- Progressive PEFT/LAARA-style gradient-score-to-rank allocation (a simplified reproducible comparator, with its exact score and smoothing stated).
+
+All variants must land at the same total physical adapter parameter count:
+\[
+P_{total}=\sum_\ell k_\ell(d_{out,\ell}+d_{in,\ell}).
+\]
+Matching average rank alone is insufficient when target matrices have different dimensions. For GARS, determine \(\tau_{base}\) with a deterministic search so that the resulting total physical parameters match the target budget as closely as the rank floor permits.
+
+### Reliability analysis
+For each layer, calculate:
+- Raw gradient score and smoothed score.
+- Activation norm score.
+- Validation ablation importance (validation-loss increase when that layer's adapter is removed).
+- Squared-energy spectral entropy.
+Then quantify Spearman rank correlation / Kendall agreement of each signal with ablation importance, and compare these scores across seeds. Test whether spectral entropy moderates the rank correlation or the performance benefit of GARS. Keep this diagnostic separate from the main final-adapter accuracy comparison.
+
+### Mentor discussion
+Bring the mentor:
+1. This updated prior-art comparison (especially Progressive PEFT and LAARA).
+2. The exact narrowed method distinction (gradient-conditioned energy threshold versus score-to-rank and global threshold).
+3. The proposed matched-budget comparison and signal-reliability analysis.
+4. A question about whether a comparative empirical Phase 1 study is acceptable if the algorithmic novelty is narrower than first expected.
+
+Do not silently change the approved project objectives or title. Record any agreed refinement in the work log and, if the scope materially changes, follow the IITM process for mentor/coordinator notification.
