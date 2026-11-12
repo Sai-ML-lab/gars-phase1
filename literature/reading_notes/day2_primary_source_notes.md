@@ -316,3 +316,15 @@ This is not yet established as novel. It may be an incremental mapping variation
 5. Discuss the refined contribution with the mentor before claiming algorithmic novelty.
 
 If the mechanism is not sufficiently distinct, reposition Phase 1 as a careful empirical investigation of signal reliability and budget-controlled pruning: which importance signals (raw adapter gradients, smoothed/Fisher, integrated gradients, activations, perturbation) best predict the task loss induced by layer-wise truncation, and under what spectral conditions. The proposed GARS threshold can then be a candidate policy evaluated against prior methods, rather than claiming it is the first adaptive-gradient LoRA algorithm.
+
+
+### 7.7 Sawant — When Gradient Importance Lies (ACL Workshop, October 2026)
+Primary publication record: [ACL Anthology](https://aclanthology.org/2026.insights-1.14/) · DOI 10.18653/2026.insights-1.14 · [arXiv preprint](https://arxiv.org/abs/2605.07366)
+
+The accessible abstract and full-text mirror describe a negative result for proportional gradient-based rank allocation under GRPO. The experiment uses Qwen2.5-1.5B-Instruct, GSM8K, 28 Transformer layers, LoRA on seven projection modules per layer, uniform rank 32, and an equal total rank budget for non-uniform configurations. The reported proportional allocation scores 70.0% vs 74.5% for uniform (a 4.5-point decrease); random allocation scores 67.5%.
+
+The paper measures a relatively flat layer-wise gradient-importance profile under GRPO: max/min ratio 2.17×. After non-uniform rank allocation, the ratio widens to 3.00×. Its random-allocation control shows a high association between assigned rank and subsequent gradient-share changes (reported r=0.972), leading the authors to argue that the allocated rank itself affects the later measured gradient importance. Training reward curves are reported as similar, with performance differences appearing at evaluation.
+
+**Interpretation and limits.** This is an RL/GRPO result, not evidence that gradient-guided capacity allocation fails under SFT. The study is explicitly single-model, single-task and single-seed, with 200 test examples; the authors state that confidence intervals overlap and recommend multi-seed replication. It does not provide a direct same-model/same-data SFT-versus-GRPO comparison; its contrast with SFT gradient concentration relies on prior work. The official ACL Anthology publication is peer-reviewed workshop proceedings, but the body text was consulted through an accessible preprint/mirror because the direct ACL PDF text extraction was unavailable in this session. Use its findings as preliminary, context-specific evidence.
+
+**Relevance to GARS.** The paper makes the timing of gradient measurement important. A gradient profile recorded under one rank allocation may not remain valid after changing the allocation. A robust GARS study should therefore record gradient statistics before and after allocation changes, and should compare static pre-probe scores with online/temporally aggregated scores. It also motivates not generalizing a gradient-based policy across training regimes (SFT vs RL) without evidence.
