@@ -208,3 +208,111 @@ The proposal's mechanism currently appears closest to a combination of:
 - PARA for QR-SVD and physically truncated post-hoc LoRA export.
 
 A credible GARS contribution therefore needs to be a carefully isolated, experimentally tested interaction between **adapter-factor gradient statistics**, **layer-specific squared-energy retention thresholds**, and **spectral concentration as a moderator of the relative benefit against matched-budget baselines**. The exact timing and optimizer-state correctness of the live gradients must be specified. Do not claim this interaction is new until the full papers and code of the closest methods have been checked.
+
+
+## 7. Additional full-text reading: ALoRA, LAARA, IGU-LoRA and recent adjacent methods
+
+### 7.1 ALoRA — Liu et al. (NAACL 2024)
+Primary source: [ACL Anthology PDF](https://aclanthology.org/2024.naacl-long.35.pdf) · DOI: 10.18653/v1/2024.naacl-long.35
+
+**Method.** ALoRA treats rank allocation as a budgeted architecture-allocation problem. Each module starts at a uniform rank chosen so the target total budget is already met; it does not first allocate an oversized rank and later compress it. A diagonal gate is inserted between the two LoRA factors. Its architecture variables are relaxed through a sigmoid during the setup, but the actual AB-LoRA workflow freezes those architecture parameters and measures rank importance directly.
+
+For one rank component r, AB-LoRA evaluates three variants on the same validation mini-batch: the full super-network M, the super-network with only r removed, and the network retaining only r. With S(M) set to negative cross-entropy, the importance score is:
+\[
+IS(r)=S(M)-S(M_{\backslash r})+S(M_r).
+\]
+A component is considered important if its removal damages the full network and if it performs usefully when acting alone. The workflow trains the super-network for K1 epochs, scores ranks on a validation batch, prunes the nA least important ranks, reallocates the freed ranks to modules that were not pruned (prioritized by average importance), then fine-tunes for K2 epochs to recover performance. This process repeats up to NA rounds.
+
+**Experimental setting.** Main results use Llama-2-7B on SST-2, RTE, QNLI, BoolQ, COPA, ReCoRD and SQuAD; E2E generation and Alpaca instruction tuning are also studied. GPT-2-large and RoBERTa-large are used in backbone ablations. The main setup starts each module at rank 8 with total target budget 8 × number of modules; batch size for validation scoring is 32, K1=1 epoch, K2=0.25 epoch, and up to 8 allocation rounds. Five random seeds are run and median performance is reported. A40 48GB GPUs are used.
+
+**Interpretation.** ALoRA is prior art for adaptive rank pruning and budget reallocation across Transformer modules, including actual rank-wise ablation scoring. It is *not* a gradient-based importance method and does not use singular-value energy retention. It also does not need an oversized initial rank; rank budget is already met at initialization. Its ranking signal is validation-set ablation of individual rank units, so the number of candidate ranks and repeated forward evaluations introduce a measurement cost.
+
+**Limitations stated by the authors.** They do not evaluate 13B/70B backbones due to compute limits and do not study information extraction. This was full-text read from the ACL Anthology PDF, not only the abstract.
+
+### 7.2 LAARA — Tripathi et al. (2026 preprint)
+Primary source: [arXiv full text](https://arxiv.org/abs/2607.19391)
+
+**This is one of the closest prior-art papers to GARS.** LAARA calculates empirical Fisher estimates from LoRA A/B gradients during training. It separately tracks gradient-squared estimates for A and B with EMA and bias correction, normalizes scores within each projection type, applies logarithmic compression, blends the A/B scores, then maps the resulting layer importance to bounded integer ranks. A vote-to-change mechanism requires the same proposed target rank for multiple consecutive update intervals before a rank change is committed.
+
+A simplified description of the signal is:
+\[
+F_{\ell,A}\propto\operatorname{EMA}\left(\|\nabla A_\ell\|_F^2\right),\qquad
+F_{\ell,B}\propto\operatorname{EMA}\left(\|\nabla B_\ell\|_F^2\right),
+\]
+followed by per-projection normalization, log compression and weighted blending. The exact paper equations should be transcribed from its PDF if included in the final report; the text extraction used here loses some displayed formula glyphs.
+
+The authors evaluate DeBERTa-v3-base and Llama-3.2-3B on GLUE and MathInstruct/GSM8K. The appendix states three random runs for GLUE. The stated configuration includes initial rank 4, min rank 2, max rank 8, EMA decay 0.97, warmup 200 steps, rank update interval 200, A/B blend 0.5, log compression 10 and vote patience 2. The paper reports better performance than LoRA/AdaLoRA/DyLoRA at matched budgets on its selected tasks.
+
+**Why this matters for GARS.** LAARA already uses training-time LoRA-factor gradients (via a diagonal empirical-Fisher approximation) to produce per-layer rank allocations. A statement that GARS is the first to use live per-layer LoRA gradients for adaptive rank would therefore be false. The potential distinction is narrower: GARS converts a layer-gradient ratio directly into a layer-specific singular-value *energy-retention threshold*, rather than mapping a Fisher score to an integer rank through normalized/blended score rules.
+
+**Caution about the paper's theory.** LAARA proves monotonic rank profiles under stated assumptions on layer Jacobians, bounded weights and activation normalization. These assumptions are stronger than simply saying “Transformer gradient norms always increase with depth.” The paper's empirical trend is model/task/configuration-dependent; do not generalize its monotonicity statement beyond the theorem's assumptions and tested settings. The empirical-Fisher approximation also discards off-diagonal curvature. Its own limitations mention that diagonal-Fisher approximation may underestimate importance and that the rank interval/update interval/A-B blend are not broadly ablated.
+
+**Status.** The reviewed source is an arXiv preprint. Treat its claims as preprint evidence unless a later peer-reviewed venue version is found.
+
+### 7.3 IGU-LoRA — Cui et al. (ICLR 2026)
+Primary source: [ICLR 2026 proceedings](https://proceedings.iclr.cc/paper_files/paper/2026/hash/407106f4b56040b2e8dcad75a6e461e5-Abstract-Conference.html) · [arXiv full text](https://arxiv.org/abs/2603.13792)
+
+IGU-LoRA also directly addresses the reliability of gradient-derived importance. It extends Integrated Gradients to the parameter space: for a parameter w, it integrates the gradient of loss along a path from a zero baseline to the current parameter value. To make this practical, it discretizes the path into N points and samples one integration point per mini-batch, accumulating an epoch-level estimate. The paper gives a trapezoidal discretization error of order O(N^-2) and a sampling error of order O(M^-1/2), under stated smoothness/boundedness assumptions.
+
+It then applies an exponential moving average to the integrated sensitivity and estimates uncertainty by tracking deviations across mini-batches. The final signal is described as an SNR-like ratio between smoothed sensitivity and uncertainty. Singular-component importance combines this score for the associated SVD factors with singular-value magnitude, after which the top-budget components are retained.
+
+The method prunes during training. Rank pruning begins at epoch 2 and ends at epoch 5, at one-fifth-epoch intervals; after pruning, the model is fine-tuned with early stopping. The paper reports five random seeds and median results. Experiments include RoBERTa-large/GLUE, Qwen2.5-0.5B for reasoning, and additional Llama-2-7B, Llama-3-8B and DeepSeek-R1-Distill-Qwen-2.5-7B studies.
+
+**Implication.** GARS should not claim that gradient noise or uncertainty in rank scores is unstudied. IGU-LoRA proposes a path-integrated, uncertainty-aware alternative. A defensible GARS experiment could compare a simple gradient-norm threshold against temporally averaged or uncertainty-aware alternatives, but only if the extra computation is practical and budgets are matched.
+
+**Limitations/assumptions.** The authors acknowledge non-trivial computational overhead and dependence on integration-path choice and uncertainty estimation. The stability theorem assumes an i.i.d./sub-Gaussian local noise model; the appendix explicitly calls this a stylized local-stationarity approximation after burn-in, rather than an exact description of all LLM training dynamics.
+
+### 7.4 LoRA-Perturb — Jin et al. (Research Square preprint, posted 9 November 2026)
+Primary source: [Research Square DOI](https://doi.org/10.21203/rs.3.rs-11155625/v1)
+
+This very recent preprint is adjacent prior art for *layer importance measurement*, although it does not implement dynamic per-step rank pruning. It performs a short LoRA warm-up on a small subset of training data, injects Gaussian perturbations into one layer's LoRA pathway, and measures the resulting change in prediction confidence (or task-specific loss/log-likelihood). It reduces measurement cost using random subset downsampling (100–500 examples), one-pass activation caching, and localized forward reuse. It then uses normalized perturbation scores to generate a static warm-start configuration: higher-importance layers receive higher ranks and inversely scaled lower learning rates. The total rank budget is matched to uniform rank 8, with per-layer ranks bounded [4,16].
+
+The paper studies RoBERTa-base/GLUE and Llama-2-7B/GSM8K/MT-Bench. It reports five seeds for main experiments, but an internal gradient-dynamics stability comparison says three runs and explicitly avoids statistical-significance claims. Its SST-2 ablation uses 2,000 training examples and reports a small absolute accuracy difference; authors describe it as preliminary and do not run formal significance tests. It also states that the layer-importance measurement is a one-time warm-start and that dynamic rank reallocation during training is future work.
+
+**Implication.** This paper does not duplicate GARS, but it demonstrates that activation/perturbation-based layer importance is an active 2026 direction. It can inform the activation/sensitivity comparator and underscores the need to distinguish a one-time warm-start rank schedule from live training-time pruning.
+
+**Status.** Research Square preprint, not peer-reviewed in the reviewed record. The posting date shown in the Scite record is 9 November 2026; re-check its version and status before report submission.
+
+### 7.5 LaRA — Zhou et al. (Information Processing & Management, 2026)
+Primary source: [ScienceDirect article](https://www.sciencedirect.com/science/article/pii/S0306457325004790) · DOI: 10.1016/j.ipm.2025.104538
+
+LaRA is a layer-wise rank allocator for *recovering already pruned LLMs* with LoRA. It profiles layer features (including information, pruning setting and position), uses a learned LSTM-based Rank Allocator and a Scoring Model trained on roughly 1,000 rank-performance pairs; the allocator is optimized with policy-gradient reinforcement learning. It predicts per-layer rank configurations before fine-tuning rather than using live A/B gradient norms during the adapter training loop. This is relevant background for automated layer-wise rank assignment, but it addresses a different setting: rank allocation for pruned backbones being restored.
+
+### 7.6 Updated method-level comparison
+
+| Method | Signal / evidence | When allocation occurs | What it changes | Key distinction from GARS |
+|---|---|---|---|---|
+| AdaLoRA | Smoothed gradient/weight sensitivity per singular triplet, with uncertainty | During training | Masks singular values under a global budget | Learned SVD-like P/Λ/Q and triplet scores |
+| DyLoRA | Randomly sampled nested rank slice | During training; selects rank at inference | Learns a rank-ordered adapter supporting multiple ranks | Rank flexibility, not layer importance |
+| SoRA | Learnable gate with L1/proximal-gradient sparsification | During training; physical deletion after | Removes zero-gated components | Sparse gate regularization, not gradient-conditioned energy threshold |
+| ALoRA | Validation-set ablation score of each rank | Periodic prune/reallocation cycles | Prunes individual rank units and reallocates budget | Empirical validation influence, not gradient or spectrum energy |
+| GoRA | N-batch gradients of frozen pretrained weights times weights | Before adapter training | Assigns per-matrix rank and gradient-based initialization | Base-weight pre-training probe, not live LoRA-factor score |
+| Act-LoRA | Layer activation L2 norm | Pre-training probe | Selects top-k layers to receive LoRA | Selects adapter placement, not within-layer ranks |
+| FlexLoRA | Matrix-level squared-energy spectral entropy | During training | Prunes and expands ranks under global budget | Spectral entropy as the allocation signal |
+| PARA | Global pool of singular values from QR-SVD; target rank or Frobenius-energy policy | Post-training | Physically truncates each adapter's factors at global threshold | Global spectral threshold, no gradient signal |
+| IGU-LoRA | Parameter-space integrated gradients with EMA/uncertainty | During training | Scores singular components and retains top budget | Path-integrated SNR-like score rather than a layer-gradient threshold |
+| LAARA | EMA empirical-Fisher traces from squared LoRA A/B gradients; normalization, log compression, A/B blend, voting | During training | Maps layer scores to integer ranks and resizes adapters | Very close gradient-based layer-rank prior art |
+| LoRA-Perturb | Prediction-confidence/task-loss drop from noise intervention in LoRA pathway | One-time post-warm-up probe | Static rank + learning-rate warm-start | Perturbation-based layer importance, not live gradient/SVD pruning |
+| LaRA | Layer features + learned score/allocator | Before fine-tuning pruned models | Predicts layer ranks | Allocator for restoring pruned backbones |
+
+## 8. Updated assessment of GARS novelty
+
+The initial broad formulation—“gradient-aware per-layer adaptive LoRA rank pruning”—is not a sufficiently differentiated novelty claim after reviewing the 2025–2026 literature. In particular:
+- GoRA uses gradients for rank allocation before adapter training.
+- LAARA uses squared LoRA A/B gradients as empirical-Fisher proxies to allocate layer ranks during training.
+- IGU-LoRA uses integrated gradients and uncertainty-aware scores to prune singular components.
+- FlexLoRA uses squared-singular-value spectral entropy to drive per-matrix rank pruning/expansion.
+- PARA uses QR-SVD and global singular-value/Frobenius-energy thresholding for post-training physical adapter compression.
+- SoRA and ALoRA already establish alternative training-time mechanisms for pruning and reallocating rank.
+- LoRA-Perturb provides recent adjacent evidence for perturbation-based layer importance and static differentiated rank/learning-rate warm starts.
+
+The only defensible *candidate* distinction currently visible is the particular policy that maps a live or temporally aggregated layer-level LoRA-factor gradient statistic to a per-layer squared-Frobenius-energy retention threshold, together with an empirical analysis of whether a pre-specified spectral-shape statistic moderates that policy's benefit relative to carefully budget-matched spectral baselines.
+
+This is not yet established as novel. It may be an incremental mapping variation compared with LAARA and IGU-LoRA. Before asserting novelty, we need:
+1. Inspect the exact LAARA code and compare its layer score/rank update with the GARS proposal formula.
+2. Inspect IGU-LoRA's implementation to see whether its singular-component selection is functionally equivalent to thresholding layer-wise energy.
+3. Compare FlexLoRA's rank-level policy and PARA's global/local threshold policies.
+4. Search for other 2026 work that directly combines layer gradients, singular-spectrum entropy/flatness and energy-retention thresholding.
+5. Discuss the refined contribution with the mentor before claiming algorithmic novelty.
+
+If the mechanism is not sufficiently distinct, reposition Phase 1 as a careful empirical investigation of signal reliability and budget-controlled pruning: which importance signals (raw adapter gradients, smoothed/Fisher, integrated gradients, activations, perturbation) best predict the task loss induced by layer-wise truncation, and under what spectral conditions. The proposed GARS threshold can then be a candidate policy evaluated against prior methods, rather than claiming it is the first adaptive-gradient LoRA algorithm.
