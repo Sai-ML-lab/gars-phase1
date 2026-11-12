@@ -328,3 +328,79 @@ The paper measures a relatively flat layer-wise gradient-importance profile unde
 **Interpretation and limits.** This is an RL/GRPO result, not evidence that gradient-guided capacity allocation fails under SFT. The study is explicitly single-model, single-task and single-seed, with 200 test examples; the authors state that confidence intervals overlap and recommend multi-seed replication. It does not provide a direct same-model/same-data SFT-versus-GRPO comparison; its contrast with SFT gradient concentration relies on prior work. The official ACL Anthology publication is peer-reviewed workshop proceedings, but the body text was consulted through an accessible preprint/mirror because the direct ACL PDF text extraction was unavailable in this session. Use its findings as preliminary, context-specific evidence.
 
 **Relevance to GARS.** The paper makes the timing of gradient measurement important. A gradient profile recorded under one rank allocation may not remain valid after changing the allocation. A robust GARS study should therefore record gradient statistics before and after allocation changes, and should compare static pre-probe scores with online/temporally aggregated scores. It also motivates not generalizing a gradient-based policy across training regimes (SFT vs RL) without evidence.
+
+
+### 7.8 Progressive PEFT — Gebretatios, Ning and Ding (Research Square preprint, 27 May 2026)
+Primary record: [Research Square DOI](https://doi.org/10.21203/rs.3.rs-9816617/v1) · full text read through conclusion and appendices
+
+**This is the closest additional prior-art method found in the expanded search.** It performs dynamic layer-wise LoRA rank allocation using smoothed gradient-derived module importance under global resource constraints.
+
+**Importance signal.** For each trainable LoRA parameter p, Progressive PEFT defines a relative-gradient score:
+\[
+s_p(t)=\frac{\|\nabla_p L\|_2}{\|p\|_2+\epsilon}.
+\]
+It maintains a per-parameter EMA (\(\beta_1=0.9\)), takes the median of the smoothed parameter scores within each LoRA module, and then maintains a second module-level EMA (\(\beta_2=0.99\)). Importance is updated each training step, with a 50-step warm-up before it is used for rank changes.
+
+**Rank allocator.** The method updates ranks every \(\tau=200\) steps by default and supports:
+- Progressive budget schedules: fixed, linear growth or adaptive growth.
+- SAP-PEFT: temperature-controlled softmax over the smoothed module scores, mapping probabilities to bounded integer ranks under a nominal fixed rank budget.
+
+The SAP-PEFT rule uses \(r_{min}=2\), \(r_{max}=32\), default temperature 1.0, then floors/clips each layer rank. The paper says it does not perform a final rescaling because any budget discrepancies are negligible. This is an important implementation detail: despite the fixed-budget motivation, integer rounding and clipping can result in deviation from the exact budget; a controlled reproduction should explicitly count the final physical parameter total.
+
+**Restructuring and optimizer.** On rank decrease it directly truncates A rows and B columns; on increase it zero-pads new dimensions; it updates the LoRA scaling factor from \(\alpha/r\) to \(\alpha/r_{new}\). It performs a full AdamW moment reset after each restructuring, retaining the learning rate. It also suppresses rank changes smaller than a threshold \(\delta=1\). This is directly relevant to the optimizer-state issue in the GARS notebooks.
+
+**Experimental design.** Tigrinya sentiment (49,374 train, 4,000 test with 10% of train held out for validation) and TiDG seven-class news (6,453 train, 807 validation, 807 test). Models: TiroBERTa (124M), Afro-XLM-R (278M), GPT-2 Small (124M). It compares LoRA, DoRA, AdaLoRA, fixed/progressive variants and SAP-PEFT. Five seeds are used; statistical reporting includes bootstrap intervals, Wilcoxon, Holm-Bonferroni and McNemar. It reports a multi-objective efficiency suite (parameters, latency, memory, throughput, energy, CO2). Experiments run in the reported paper on a single RTX 4090 Laptop 16GB, Python 3.12.8, PyTorch 2.9.0 (the exact laptop power draw/carbon estimates require care).
+
+**Results as reported by the authors.** SAP-PEFT is competitive with full fine-tuning on the two encoder architectures and yields very large trainable-parameter reductions; it performs less well on the cross-lingual GPT-2 news task. The paper reports, for example, up to 286×/336× compression in certain model/task settings, and inference latency in the 4.1–5.5 ms range. The authors also report only ~11% post-hoc power to detect a medium effect at five seeds, so non-significant comparisons do not demonstrate equivalence. Treat the outcome as preliminary evidence from this specific low-resource Tigrinya setting, not universal performance evidence.
+
+**Important literature-review correction.** The preprint argues that AdaLoRA does not coordinate a strict global parameter budget across layers. That characterization appears inaccurate: AdaLoRA explicitly introduces a global budget scheduler over singular triplets. We should not repeat Progressive PEFT's critique as an established fact; compare both papers' budget variables and exact post-pruning physical parameter counts instead.
+
+**Relation to GARS.** There is substantial overlap at the problem level and in the training-control approach:
+- Both use gradients from LoRA adapter parameters during fine-tuning.
+- Both form layer/module-level importance signals.
+- Both change adapter ranks during training.
+- Both require a budget policy and address optimizer state after rank resizing.
+- Both target per-layer adaptation capacity under resource constraints.
+
+The key mechanism-level distinction visible in the papers is:
+- **Progressive PEFT:** parameter-wise relative gradient magnitude \(\|\nabla p\|/\|p\|\), per-parameter EMA, module median, module EMA, then global softmax/proportional score-to-integer-rank allocation; direct prefix truncation/zero-padding (no energy-preserving SVD policy).
+- **GARS:** the proposal's layer-gradient statistic is normalized across layers and transformed into a layer-specific singular-value energy-retention threshold; retained rank comes from a truncated SVD of the learned LoRA update (the exploratory notebooks use reduced QR-SVD).
+
+This is a real technical difference, but it may still be judged an incremental allocation-rule variation. The Phase 1 report should not claim “the first gradient-aware per-layer rank scheduler.” The potentially defensible contribution is to measure whether using a gradient-conditioned **energy-retention constraint** yields a better quality/physical-size trade-off than gradient-score-to-rank mapping, direct prefix truncation, and global spectral thresholding, and whether spectral concentration predicts when these strategies differ.
+
+**Status:** Research Square preprint; DOI verified, but not peer-reviewed in the reviewed record. The complete paper text was read. The authors' method and claims have been captured above.
+
+### 7.9 Aletheia — Saket (arXiv preprint, 4 April 2026)
+Primary source: [arXiv paper](https://arxiv.org/abs/2604.15351) · [public method card](https://huggingface.co/aletheiaprotocol/aletheia-lora)
+
+Aletheia is adjacent prior art for gradient-guided **layer selection**, rather than rank pruning within every layer. It performs a lightweight probe of five forward/backward batches, computes per-layer backbone gradient norms, selects the top 50% of layers, and then applies LoRA only to those layers. The paper also uses asymmetric ranks for attention and MLP modules (e.g. attention r=16 and MLP r=64 in one recipe). It does not update layer ranks dynamically during the main adapter training.
+
+The paper reports cross-architecture tests across 14 successful models from eight families, 0.5B–72B, including an MoE model; three seeds are used. Its reported speedups are 15–28% (mean 23.1%), with quality checks including MMLU and (in a second campaign) GSM8K/HumanEval. The authors report one Pythia-1.4B GPT-NeoX attempt that failed under fp16 NaNs for both Aletheia and standard LoRA. The public method card explicitly cautions that the top-50% selection rule is a heuristic and reported speedups depend on the tested hardware/software.
+
+**Relation to GARS.** Aletheia:
+- Uses gradients of backbone layer parameters in a pre-training probe.
+- Makes a binary decision about whether a layer receives adapters.
+- Uses asymmetric attention/MLP rank configurations but not dynamic within-layer SVD pruning.
+
+It therefore does not duplicate GARS's proposed per-layer gradient-conditioned energy retention, but it adds to the prior art for gradient-driven layer selection and reinforces the need to distinguish *where to attach LoRA*, *which integer ranks to allocate*, and *which singular directions to retain*.
+
+**Status:** arXiv preprint; no peer-reviewed publication record found in the reviewed search. Treat cross-family performance figures as author-reported preprint results.
+
+## 9. Revised novelty and scope assessment after Progressive PEFT
+
+The broader proposal phrase “gradient-aware per-layer adaptive rank scheduling” is already directly represented by Progressive PEFT and LAARA, in addition to GoRA and IGU-LoRA. It is therefore not safe to claim the general concept as novel.
+
+The GARS policy still appears distinguishable at the mathematical/mechanism level:
+1. A normalized layer-gradient statistic determines a layer-specific **squared-Frobenius-energy retention threshold**;
+2. A per-adapter SVD determines the minimum retained rank satisfying that threshold;
+3. The final budget is calibrated across the physical parameter cost of differently shaped adapter matrices.
+
+Progressive PEFT maps a smoothed relative-gradient module score to an integer rank and restructures by direct prefix truncation/zero-padding; LAARA maps an EMA empirical-Fisher score to an integer rank; IGU-LoRA ranks singular components using integrated-gradient sensitivity and uncertainty; PARA uses a global spectral threshold. This difference is technically concrete, but it is not proof of a strong novelty claim.
+
+The strongest Phase 1 contribution may therefore be a **controlled comparative investigation**:
+- Does gradient-conditioned per-layer energy retention outperform fixed/local energy retention and PARA-style global spectral thresholding under exactly matched physical adapter budgets?
+- Does it offer any benefit beyond a gradient-score-to-rank method such as Progressive PEFT/LAARA?
+- Does singular-spectrum concentration predict when each signal/allocation policy is reliable?
+- Do physical export and inference measurements confirm the claimed efficiency gains?
+
+This reframing keeps the proposal's core question alive while avoiding an indefensible first-method claim. It should be discussed with the mentor before any formal change to title, objectives or methodology.
