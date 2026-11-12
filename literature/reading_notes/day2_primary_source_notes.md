@@ -404,3 +404,47 @@ The strongest Phase 1 contribution may therefore be a **controlled comparative i
 - Do physical export and inference measurements confirm the claimed efficiency gains?
 
 This reframing keeps the proposal's core question alive while avoiding an indefensible first-method claim. It should be discussed with the mentor before any formal change to title, objectives or methodology.
+
+
+## 10. Code-level audit of released implementations (12 November 2026)
+
+The paper and the public code must be treated as separate evidence sources. This audit inspects the currently visible default branches; it is not an independent reproduction.
+
+### IGU-LoRA public repository
+Repository: https://github.com/Cuixuans/igulora
+
+Files inspected: iglora/rank_allocator.py, iglora/lora_module.py, iglora/run_pruning_sft.py, iglora/run_final_sft.py, and README.
+
+The visible RankAllocator class docstring explicitly references AdaLoRA. Its per-parameter score is abs(p * p.grad), with one EMA for the sensitivity and a second EMA of the deviation from the smoothed sensitivity. The component-level score aggregates A-row and B-column contributions with the learned diagonal singular-value parameter E. A global threshold is selected to meet a target total-rank schedule. The pruning-training script calls the allocator after optimizer.step(), writes a ranks_to_mask.json file and sets low-importance E entries to zero.
+
+The repository is a two-stage workflow. The final SFT script loads ranks_to_mask.json, writes zeros into the lora_mask vectors, and multiplies E by that mask in the forward pass. It saves all state-dict entries containing lora; the A/B/E tensor dimensions are retained. Thus the observed code masks rank coordinates but does not create physically shortened A/B factor tensors.
+
+**Paper-code caveat:** the inspected public implementation contains no visible parameter-path integration, quadrature nodes or accumulated Integrated Gradients calculation. It uses a p * grad EMA/uncertainty score. The repository has only two February 26, 2026 commits, while the paper appeared on arXiv in March 2026 and was published at ICLR 2026. The safest interpretation is that this is an early or incomplete code snapshot that may not reflect the final paper method. Do not characterize the paper itself as AdaLoRA; state only that the inspected public branch does not demonstrate the published IG mechanism. The detailed code audit is recorded in implementation_audit_igu_aletheia.md.
+
+### Aletheia public repository
+Repository: https://github.com/aletheiaprotocol-ai/aletheia-lora
+
+Files inspected: src/aletheia_lora/probe.py, selection.py, config.py, and README.
+
+The implementation samples five batches by default (seeded, shuffled DataLoader with batch size 1) and processes transformer layers in chunks of eight. For each chunk it enables gradients only for parameters in that chunk; for every sampled batch it performs a causal-language-model forward/backward and adds each parameter tensor's gradient norm to the layer's score. It then zeroes gradients, continues to the next chunk, and ultimately sets all floating model parameters to requires_grad=False. The selector keeps the top percentage of layer scores (default 50%); the PEFT config applies LoRA only to selected layers, with optional asymmetric attention/MLP ranks.
+
+Two code-level points should be noted:
+1. The probe sets model.train(), so dropout and other training-mode stochastic behavior may affect the probe scores.
+2. probe_batches=5 means five examples/batches per layer chunk. For a 36-layer model and chunk size 8, there are five chunks, so the probe can execute up to 25 full-model forward/backward passes, not five total passes.
+
+The score is an accumulation of per-parameter tensor gradient norms, not an explicitly concatenated layer Frobenius norm. Aletheia performs a one-time top-k layer-selection decision before adapter training; it does not dynamically change each selected layer's rank or truncate the singular spectrum of each adapter.
+
+### LAARA code availability
+The LAARA arXiv record links a public anonymous code snapshot at https://anonymous.4open.science/r/LAARA-D305/LAARA.py. The host did not permit retrieval through the available browser connector in this session. The full LAARA paper was read, but the code was not independently audited. Do not write that LAARA's implementation has been verified until the file is accessible and inspected.
+
+### Progressive PEFT code availability
+The Research Square full text says code/configurations/adapters/analysis scripts will be released publicly, but the reviewed full text and searches did not expose a repository URL. Treat the method as paper-only evidence for now, and do not claim code-level reproduction or verification.
+
+### Implementation-review lesson for GARS
+The public implementation of GARS must separately demonstrate:
+- that the gradient statistic in code matches the equation in the report;
+- that the energy ratio in code is squared singular-value energy if the report calls it Frobenius energy;
+- that the layer-wise retained rank is computed correctly;
+- that rank resizing/optimizer state handling follows the described timing;
+- that exported tensors are physically smaller, not simply masked;
+- that the saved adapter reloads and gives equivalent outputs to the corresponding truncated dense update.
