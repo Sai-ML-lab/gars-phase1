@@ -94,3 +94,40 @@ Focus: GRPO is not the same training regime as our proposed SFT experiments.
 8. One sentence explaining how it differs from GARS.
 
 Do not paste an AI-generated summary as your reading notes. Use it to guide your reading, then record your own explanation and questions.
+
+
+## Newly added prior art — read these before freezing the research gap
+
+### R12. Progressive PEFT — Gebretatios, Ning and Ding (Research Square preprint, May 2026)
+Full paper: https://doi.org/10.21203/rs.3.rs-9816617/v1  
+Read: gradient score, two-level EMA, median module aggregation, global-budget rank allocator, direct factor resizing/optimizer reset, Tigrinya experiments and limitations.
+
+Be ready to explain:
+- Why does it use \(\|\nabla_p L\|/(\|p\|+\epsilon)\), rather than simply \(\|\nabla p\|\)?
+- What are the purposes of the parameter-level EMA, module median and module-level EMA?
+- How does the softmax rank allocator maintain (or approximate) the global parameter budget after rank clipping/flooring?
+- Why does it truncate/zero-pad factors rather than use SVD?
+- How does its optimizer reset compare with the GARS implementation and proposal?
+
+**This is a critical comparison**, because it already performs online gradient-derived layer-wise rank scheduling and resets optimizer state when ranks change. Treat it as a preprint, not peer-reviewed evidence.
+
+### R13. Aletheia — Saket (arXiv preprint, April 2026)
+Paper: https://arxiv.org/abs/2604.15351  
+Code/method card: https://github.com/aletheiaprotocol-ai/aletheia-lora
+
+Read: five-batch gradient probe, top-50% layer selection, asymmetric attention/MLP ranks, paired cross-architecture evaluation and limitations.
+
+Be ready to explain:
+- Which gradients are probed (backbone layer weights)?
+- Why is this a one-time layer-selection rule rather than dynamic rank pruning?
+- What changes in training compute when some layers receive no adapters?
+- How does it differ from the GARS objective of retaining singular directions within each LoRA adapter?
+
+### Updated student reading note
+
+After reading Progressive PEFT, write a direct comparison paragraph with LAARA and GARS. Focus on the exact score and mapping:
+- Progressive PEFT: relative per-parameter gradient score → EMA/median/EMA → budgeted integer rank → direct factor truncation/zero-padding.
+- LAARA: squared A/B gradients / empirical-Fisher proxy → normalization, compression, blending and voting → integer layer rank.
+- GARS proposal: normalized layer-gradient statistic → per-layer energy-retention threshold → SVD-derived retained rank.
+
+The comparison should not say that GARS is the first gradient-aware layer-wise rank method. Explain what the energy-retention constraint adds and what evidence would be needed to show that it matters.
