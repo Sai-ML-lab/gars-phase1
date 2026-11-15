@@ -197,6 +197,39 @@ def calibrate_gars_budget(
     if not 0 < tau_min <= tau_max <= 1:
         raise ValueError("Require 0 < tau_min <= tau_max <= 1.")
 
+    if beta == 0.0:
+        # With beta=0, every layer must receive the same threshold. Delegate to
+        # the uniform calibrator so the ablation is exactly rank-equivalent.
+        gars_thresholds(
+            importance_by_layer,
+            tau_base=0.90,
+            beta=0.0,
+            tau_min=tau_min,
+            tau_max=tau_max,
+        )
+        uniform = calibrate_uniform_energy_budget(
+            spectra,
+            target_parameters=target_parameters,
+            min_rank=min_rank,
+            tau_min=tau_min,
+            tau_max=tau_max,
+            iterations=iterations,
+        )
+        uniform_thresholds = {
+            int(layer_id): uniform.threshold_parameter
+            for layer_id in importance_by_layer
+        }
+        return _budget_result(
+            "gars_energy_threshold",
+            uniform.threshold_parameter,
+            uniform_thresholds,
+            uniform.ranks_by_module,
+            spectra,
+            target_parameters,
+            uniform.minimum_parameters,
+            uniform.maximum_parameters,
+        )
+
     def evaluate(base: float) -> tuple[dict[int, float], dict[str, int], int]:
         thresholds = gars_thresholds(
             importance_by_layer,
