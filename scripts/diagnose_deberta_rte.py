@@ -35,6 +35,13 @@ def _device(name: str) -> torch.device:
     return device
 
 
+def _string_list(values: Any) -> list[str]:
+    """Convert Transformers loading-info collections to JSON-safe strings."""
+    if values is None:
+        return []
+    return sorted(str(value) for value in values)
+
+
 def _finite(label: str, tensor: torch.Tensor) -> None:
     finite = torch.isfinite(tensor)
     if not bool(finite.all().item()):
@@ -149,10 +156,10 @@ def main() -> None:
     base_model.config.problem_type = "single_label_classification"
     print("Loading report:")
     print(json.dumps({
-        "missing_keys": loading_info.get("missing_keys", []),
-        "unexpected_keys": loading_info.get("unexpected_keys", []),
-        "mismatched_keys": loading_info.get("mismatched_keys", []),
-        "error_msgs": loading_info.get("error_msgs", []),
+        "missing_keys": _string_list(loading_info.get("missing_keys", [])),
+        "unexpected_keys": _string_list(loading_info.get("unexpected_keys", [])),
+        "mismatched_keys": _string_list(loading_info.get("mismatched_keys", [])),
+        "error_msgs": _string_list(loading_info.get("error_msgs", [])),
     }, indent=2))
     print(
         "Loaded parameter dtypes:",
