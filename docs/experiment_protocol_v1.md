@@ -87,3 +87,18 @@ The post-hoc exporter creates three physical adapter variants from each common p
 The target remains 60% of the parent LoRA A/B factor count. Every method records its realized physical count, budget error, per-module ranks, retained squared-energy fraction, spectral entropy, weight-file bytes and validation metrics. Integer ranks can make exact matching impossible; report actual counts rather than describing them as exact matches.
 
 The export adjusts each module's PEFT `alpha_pattern` so the original LoRA multiplier is unchanged after rank reduction. Before metrics are reported, reload the adapter on a fresh FP32 base, verify every instantiated A/B rank and runtime scaling multiplier, and evaluate the same RTE validation examples. The parent model weights must be pinned to an immutable Hugging Face commit SHA for this comparison; a floating `main` revision is not acceptable for a final reproducibility claim.
+
+
+## Base-model snapshot and provenance
+
+The V1 config pins `microsoft/deberta-v3-base` to Hub revision `8ccc9b6f36199bec6961081d44eb72fb3f7353f3`. Before the first pruning comparison, the local Hugging Face cache contained two partial snapshot directories: `8ccc9b6f36199bec6961081d44eb72fb3f7353f3` and `de19fe7db5162df5f3d8f0b41321c0267288fd74`.
+
+A direct local comparison established:
+- 210 PyTorch checkpoint tensors and 210 safetensors tensors;
+- all 210 common tensors have matching shapes and are exactly equal after loading;
+- maximum absolute tensor difference is 0.0;
+- the two snapshot config files are byte-identical, with SHA-256 `649f6a1ec33c6bdd9a648d6c66019d461139e54957073eafe9bbc2d34c75b0b`.
+
+This establishes identical model-weight and model-config contents across the two cached snapshots. It does **not** establish a cryptographic per-run record of which commit each of the three completed parent-training processes resolved, because their historical `base_model_revision` metadata fields were null. The parent runs are retained with this limitation disclosed; do not rewrite their historical metadata or claim that the immutable commit was recorded at training time. For subsequent pruning reloads, use the pinned `8ccc9...` revision, whose model weights/config were shown to be identical to the `de19...` snapshot that held the safetensors file observed during training.
+
+The parent-training runner now falls back to the configured revision when Transformers does not populate `config._commit_hash`, so future metadata records the pinned config revision rather than null.
