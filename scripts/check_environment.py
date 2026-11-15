@@ -10,7 +10,7 @@ import json
 import platform
 import sys
 import traceback
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -48,7 +48,7 @@ def run_device_checks(device: torch.device) -> dict[str, Any]:
             raise RuntimeError("Gradient missing or non-finite")
         checks["autograd_backward"] = {"status": "passed", "gradient_norm": grad_norm}
 
-    except Exception as exc:  # Report the failed operation without hiding its traceback.
+    except RuntimeError as exc:  # Report unsupported or failed device operations.
         checks["device_test"] = {
             "status": "failed",
             "error": repr(exc),
@@ -58,9 +58,13 @@ def run_device_checks(device: torch.device) -> dict[str, Any]:
         if device.type == "mps":
             try:
                 torch.mps.synchronize()
-            except Exception:
-                pass
-                
+            except RuntimeError as exc:
+                results["checks"]["mps_synchronize"] = {
+                    "status": "failed",
+                    "error": repr(exc),
+                    "traceback": traceback.format_exc(),
+                }
+
     return results
 
 
@@ -68,7 +72,7 @@ def main() -> int:
     mps_built = bool(torch.backends.mps.is_built())
     mps_available = bool(torch.backends.mps.is_available())
     report: dict[str, Any] = {
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "timestamp_utc": datetime.now(UTC).isoformat(),
         "platform": platform.platform(),
         "macos_version": platform.mac_ver()[0],
         "machine": platform.machine(),
@@ -104,7 +108,7 @@ def main() -> int:
     if not mps_available:
         print("\nNOTE: MPS is unavailable. CPU diagnostics ran; investigate macOS/PyTorch setup.")
     return 0 if all(
-        test["checks"].get("device_test", {}).get("status") != "failed"
+        all(check.get("status") != "failed" for check in test["checks"].values())
         for test in report["tests"]
     ) else 1
 
