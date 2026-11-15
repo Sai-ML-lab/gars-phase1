@@ -41,6 +41,15 @@ def _mean_sample_std(values: list[float]) -> dict[str, float | None]:
     }
 
 
+def _format_mean_sample_std(summary: dict[str, float | None]) -> str:
+    """Format a mean and sample SD, handling a single observation explicitly."""
+    mean = float(summary["mean"])
+    sample_std = summary["sample_std"]
+    if sample_std is None:
+        return f"{mean:.6f} ± n/a (one seed)"
+    return f"{mean:.6f} ± {float(sample_std):.6f}"
+
+
 def _load_actual_gars(
     baseline_root: Path,
     seed: int,
@@ -455,8 +464,9 @@ def main() -> None:
         loss = entry["validation_metrics_mean_sample_std_across_seeds"]["loss"]
         delta = entry["paired_metric_delta_vs_observed_gars_mean_sample_std"]["loss"]
         print(
-            f"shift={shift:02d}: loss={loss['mean']:.6f} ± {loss['sample_std']:.6f}; "
-            f"loss_delta_vs_observed_gars={delta['mean']:+.6f} ± {delta['sample_std']:.6f}"
+            f"shift={shift:02d}: loss={_format_mean_sample_std(loss)}; "
+            "loss_delta_vs_observed_gars="
+            f"{_format_mean_sample_std(delta)}"
         )
     print("\nPER-SEED OBSERVED GARS VS CYCLIC-SHIFT LOSS")
     for seed, metrics in per_seed_distribution.items():
