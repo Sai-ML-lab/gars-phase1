@@ -321,3 +321,16 @@ The first seed-42 pruning attempt correctly stopped before exporting anything be
 - whether the current SHA is the only cached snapshot and whether its model weights/config timestamps predate the three parent runs.
 
 If the cache contains only the resolved SHA and that SHA is the one fetched during the parent-training session (the user observed a 371 MB model download during seed 42 and the later seeds ran in the same work session), this provides strong local-cache evidence but not a cryptographic per-run attestation. Pin the config to that SHA for all fresh pruning base-model loads, while retaining the historical provenance caveat in the report. If multiple snapshots exist or provenance is ambiguous, do not proceed with the existing parent models as a strict matched-base experiment; retrain all parent seeds under the pinned revision or explicitly label the limitation.
+
+
+## 15 November 2026 — multiple partial Hugging Face snapshots discovered
+
+The student inspected the local Hugging Face cache for `microsoft/deberta-v3-base`:
+- `refs/main` points to `8ccc9b6f36199bec6961081d44eb72fb3f7353f3`.
+- Snapshot directory `8ccc9b6f36199bec6961081d44eb72fb3f7353f3` contains `config.json` (579 bytes; mtime 2026-11-15 16:32:00).
+- Snapshot directory `de19fe7db5162df5f3d8f0b41321c0267288fd74` contains `model.safetensors` (371,101,258 bytes; mtime 2026-11-15 16:34:36).
+- The cache therefore has two distinct partial snapshot directories; this is not the one-snapshot case.
+
+**Interpretation:** do not assume the parent experiments all used SHA `8ccc9...` just because that is the current `refs/main`. The model-weight file is stored under a different snapshot SHA `de19fe...`. Since the three parent run metadata objects have no immutable `base_model_revision`, the historical checkpoint provenance remains unresolved. The two SHAs may represent successive repo revisions where the large weights remained unchanged, but we need to inspect cached file symlinks/manifest and check whether each SHA resolves the same model weights and config before selecting a pinned revision.
+
+**Next action:** inspect every file/symlink in both snapshot directories, their resolved blob targets and file hashes; query the cache for `config.json` and `model.safetensors` under each explicit commit SHA. Compare model-weight hashes if both revisions are available. Also capture parent adapter and log file mtimes to align them with cache download times if possible. Do not run pruning or bypass `--allow-floating-revision` until this evidence is reviewed.
