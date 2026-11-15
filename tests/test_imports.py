@@ -3,8 +3,8 @@ from gars import (
     GradientImportanceAccumulator,
     __version__,
     alpha_for_preserved_scaling,
-    peft_module_pattern_key,
     gars_thresholds,
+    peft_module_pattern_key,
     rank_for_squared_energy,
 )
 
