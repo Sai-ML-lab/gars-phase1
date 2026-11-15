@@ -191,3 +191,10 @@ The student supplied the completed seed-42 training summary. This is the first v
 - writes `reload_validation.json` only when all checks pass.
 
 This utility has been committed but has not yet been run on the user's machine. Its output is the next gate before starting seeds 123 and 999.
+
+
+## 15 November 2026 — adapter reload validator label-preservation fix
+
+The first run of `scripts/validate_parent_adapter.py` reached validation evaluation but failed with `KeyError: 'labels'`. The validator tokenization function had removed the original GLUE RTE columns without preserving `label`; unlike the training runner, it had not copied `batch["label"]` into the tokenized batch. Consequently, `DataCollatorWithPadding` had no labels to collate.
+
+**Correction committed:** the validator now preserves `encoded["label"] = batch["label"]`, matching the exact tokenization/collation convention used by the parent training runner. This is a validation-script bug, not an adapter or model failure. Reload equivalence remains untested until the validator is rerun.
