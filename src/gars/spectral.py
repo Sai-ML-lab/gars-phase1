@@ -32,6 +32,8 @@ def _validate_factors(A: torch.Tensor, B: torch.Tensor) -> None:
         )
     if A.device != B.device:
         raise ValueError("LoRA factors A and B must be on the same device.")
+    if A.dtype != B.dtype:
+        raise ValueError("LoRA factors A and B must use the same dtype.")
     if not (A.is_floating_point() and B.is_floating_point()):
         raise TypeError("LoRA factors must use floating-point dtypes.")
 
@@ -80,12 +82,12 @@ def squared_energy_ratio(
     singular_values: torch.Tensor, retained_rank: int
 ) -> float:
     """Return retained squared-singular-value energy divided by total energy."""
-    values = _validate_singular_values(singular_values)
+    values = _validate_singular_values(singular_values).to(device="cpu", dtype=torch.float64)
     if not 0 <= retained_rank <= values.numel():
         raise ValueError("retained_rank must be between zero and the spectrum length.")
     total = torch.sum(values.square())
     if float(total.item()) == 0.0:
-        return 1.0 if retained_rank >= 0 else 0.0
+        return 1.0
     retained = torch.sum(values[:retained_rank].square())
     return float((retained / total).item())
 
@@ -112,7 +114,7 @@ def rank_for_squared_energy(
 
     The rank floor is applied even when the selected spectrum is all zeros.
     """
-    values = _validate_singular_values(singular_values)
+    values = _validate_singular_values(singular_values).to(device="cpu", dtype=torch.float64)
     if not 0.0 < threshold <= 1.0:
         raise ValueError("threshold must lie in (0, 1].")
     if not isinstance(min_rank, int) or min_rank < 1:
@@ -122,7 +124,7 @@ def rank_for_squared_energy(
             f"min_rank={min_rank} exceeds available rank {values.numel()}."
         )
 
-    energy = values.to(dtype=torch.float64).square()
+    energy = values.square()
     total_energy = energy.sum()
     if float(total_energy.item()) == 0.0:
         return min_rank
@@ -143,7 +145,7 @@ def normalized_squared_spectral_entropy(
     for a flat spectrum. This is the squared-energy entropy operationalisation;
     it should not be conflated with Roy–Vetterli entropy over normalized sigma_i.
     """
-    values = _validate_singular_values(singular_values).to(dtype=torch.float64)
+    values = _validate_singular_values(singular_values).to(device="cpu", dtype=torch.float64)
     n = values.numel()
     if n <= 1:
         return 0.0
