@@ -87,7 +87,7 @@ def _load_data(config: dict[str, Any], tokenizer: Any, batch_size: int, seed: in
         tokenize_batch,
         batched=True,
         remove_columns=train_raw.column_names,
-        desc="Tokenizing RTE diagnostic split",
+        desc=f"Tokenizing GLUE {dataset_cfg['config']} diagnostic split",
     )
     collator = DataCollatorWithPadding(tokenizer=tokenizer, return_tensors="pt")
     generator = torch.Generator().manual_seed(seed)
