@@ -43,7 +43,7 @@ def test_qr_svd_matches_direct_dense_svd() -> None:
     B = torch.randn(13, 5, dtype=torch.float64)
 
     U_qr, S_qr, Vh_qr = qr_svd_lora_update(A, B)
-    U_dense, S_dense, _Vh_dense = torch.linalg.svd(B @ A, full_matrices=False)
+    _U_dense, S_dense, _Vh_dense = torch.linalg.svd(B @ A, full_matrices=False)
 
     # QR-SVD returns the compact spectrum bounded by the LoRA factor rank.
     # Dense SVD returns min(out_features, in_features) values, including
