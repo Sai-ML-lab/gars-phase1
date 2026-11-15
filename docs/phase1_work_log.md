@@ -103,3 +103,25 @@ These key groups are consistent with loading the DeBERTa-v3-base pretraining che
 **Correction committed:** diagnostic now converts each loading-info collection to a sorted list of strings before JSON serialization.
 
 **Still unknown:** the numerical root cause of the NaN loss. Neither device diagnostic reached a forward pass, so no conclusion about MPS versus CPU stability can yet be drawn.
+
+
+## 15 November 2026 — FP16 optimizer instability isolated; FP32 trial prepared
+
+The user successfully ran the numerical preflight through base-model forward, PEFT forward and first backward on MPS:
+- All loaded base-model parameters were `torch.float16`.
+- Base-model first-batch loss was finite (0.66162109).
+- PEFT first-batch loss was finite (0.64697266).
+- First backward completed with a finite clipped global gradient norm input (2.55323505).
+- The first MPS AdamW update then produced non-finite trainable `pooler` and `classifier` parameters.
+- The CPU diagnostic output shared by the user reached a finite base-model and PEFT forward, but did not include the later backward/optimizer result; CPU optimizer behavior therefore remains unknown.
+
+**Working diagnosis:** the checkpoint was implicitly loaded in half precision because the Transformers loading default followed the checkpoint dtype. Running ordinary AdamW directly on FP16 trainable task-head parameters is a plausible cause of the first-step non-finite update: FP16 optimizer states and the default Adam epsilon can lose numerical resolution (1e-8 is below the smallest positive FP16 subnormal). This is strongly consistent with the observed stage of failure, but is not yet confirmed until the same preflight passes with FP32 parameters.
+
+**Corrections committed:**
+- Both the numerical diagnostic and parent runner now explicitly request FP32 model loading. The argument is selected by Transformers major version: `dtype=torch.float32` for v5 and `torch_dtype=torch.float32` for v4.
+- Both scripts assert that every loaded base-model and PEFT parameter is FP32 before optimization.
+- AdamW epsilon is now an explicit config value (`1e-8)) and the diagnostic uses the same epsilon as the parent runner.
+- Parent training checks trainable-parameter finiteness immediately after every optimizer update and fails at the first offending update.
+- Run metadata records FP32 parameter dtype and AdamW epsilon.
+
+**Next action:** rerun Ruff and all 21 tests, then rerun the five-step MPS numerical preflight only. Do not launch the three-epoch training run until the FP32 diagnostic passes. Do not interpret the incomplete FP16 run as a result.
