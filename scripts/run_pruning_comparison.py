@@ -541,6 +541,13 @@ def main() -> None:
         default=PROJECT_ROOT / "results" / "v1_pruned",
     )
     parser.add_argument("--device", default="auto")
+    parser.add_argument(
+        "--methods",
+        nargs="+",
+        choices=["uniform_local_energy", "global_singular_value", "gars"],
+        default=None,
+        help="Optional subset of policies to export; default runs all three.",
+    )
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument(
         "--allow-floating-revision",
@@ -641,6 +648,11 @@ def main() -> None:
         target_parameters,
         config["gars"],
     )
+    if args.methods is not None:
+        allocations = {
+            method: allocations[method]
+            for method in args.methods
+        }
     output_seed_dir = args.output_root / f"seed_{args.seed}"
     if output_seed_dir.exists() and any(output_seed_dir.iterdir()) and not args.overwrite:
         raise FileExistsError(
