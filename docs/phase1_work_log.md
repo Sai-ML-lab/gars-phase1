@@ -589,3 +589,25 @@ At beta 0, the layer-constant threshold values are 0.97766155 (seed 123), 0.9710
 **Quality-gate status:** the student has not yet supplied a fresh full-tree Ruff and pytest result after the latest mechanism/beta-sweep code and test additions. Do not mark the current code state as fully verified on the student's Mac until the following are reported after pulling the latest main branch:
 - ruff check scripts src/gars tests experiments
 - python -m pytest -q
+
+
+## 15 November 2026 — cyclic gradient-to-layer alignment ablation implemented
+
+After the beta sensitivity sweep, the next research question is whether the observed assignment of gradient-importance values to Transformer blocks matters, rather than merely the distribution of those values.
+
+**Controlled experiment implemented in the repository:**
+- Added cyclically_shift_importance to src/gars/importance.py. For sorted layer IDs, destination layer \(l_i\) receives the original score from \(l_{(i-s)\bmod 12}\). Each nonzero shift preserves the exact score multiset and mean.
+- Added tests/test_importance_ablation.py for identity shift, cyclic wraparound, score multiset/mean preservation, exhaustive source-to-other-layer coverage across all 11 non-identity shifts, and invalid inputs.
+- Added --importance-cyclic-shift to scripts/run_pruning_comparison.py. The allocation report records the original and assigned gradient scores, the shift and the destination-to-source mapping.
+- Added scripts/run_gars_gradient_permutation.py, which orchestrates all 11 non-identity shifts for seeds 42, 123 and 999 (33 exports), reuses the existing parent adapters and spectra, and validates the pinned revision, exact assigned score mapping, matched physical parameter count, PEFT rank/scaling reload and RTE validation.
+- The runner aggregates validation metrics paired against the original observed-alignment GARS result, allocation rank differences, cross-seed rank stability and the per-seed metric distribution across the 11 shifts.
+
+**Design boundary:** this is a deterministic cyclic-alignment control, not a sample from all possible permutations and not a formal permutation test. It isolates the layer-score assignment while preserving the exact gradient-score distribution. It does not establish causality or statistical significance. Beta remains frozen at 0.50 and the RTE validation set is not used to select a new setting.
+
+**Implementation verification status:** helper tests and the full-tree quality gates must be run on the M5 Max after pulling these latest commits. The student's previous statement that tests passed applies to the code before this cyclic-ablation implementation; do not assume these new tests have already passed locally.
+
+**Next execution sequence:**
+1. Pull main, run full-tree Ruff and pytest.
+2. Run the cyclic ablation on MPS with the default 11 shifts and three seeds.
+3. Share the terminal summary and confirm run_count = 33, all reload checks passed and a common physical A/B parameter count.
+4. Interpret the observed-alignment GARS metrics against the full cyclic-shift distribution for each seed. Do not select the best shift.
