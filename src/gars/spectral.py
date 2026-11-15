@@ -41,10 +41,12 @@ def _validate_factors(A: torch.Tensor, B: torch.Tensor) -> None:
 def qr_svd_lora_update(
     A: torch.Tensor, B: torch.Tensor
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Compute a thin SVD of B @ A using reduced QR factorisations.
+    """Compute a compact, rank-bounded SVD of B @ A using reduced QR.
 
     It avoids materialising the full out_features x in_features update before
-    decomposing the rank-sized core. The returned U, S, Vh satisfy
+    decomposing the rank-sized core. The returned spectrum omits trailing zero
+    singular values that a conventional dense thin SVD may include when the
+    product is rank-deficient. The returned U, S, Vh satisfy
     B @ A ~= U @ diag(S) @ Vh.
 
     Low-precision factors are promoted to float32 for QR/SVD and the returned
