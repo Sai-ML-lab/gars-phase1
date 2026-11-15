@@ -142,3 +142,40 @@ This validates the short MPS FP32 numerical preflight only. It is not a parent-t
 The loading report again showed the pretraining-only MLM/masking heads as unexpected and the sequence-classification classifier/pooler as missing. No mismatched keys or loading errors were reported. This is consistent with transfer from the DeBERTa pretraining checkpoint to the sequence-classification task; the newly initialized downstream head must be trained on RTE.
 
 **Next action:** rerun Ruff and all unit tests on the latest pulled code. If both pass, launch only the complete seed-42 FP32 parent-adapter run. Inspect epoch logs, 50-step gradient coverage, validation results and adapter files before running any additional seeds.
+
+
+## 15 November 2026 — seed 42 parent-adapter training completed
+
+The student supplied the completed seed-42 training summary. This is the first valid controlled parent-model run after the FP32 stability correction.
+
+**Training execution**
+- Base model: `microsoft/deberta-v3-base`; task: GLUE RTE.
+- Precision: FP32.
+- Optimizer updates: 468 total (156 per epoch).
+- Training loss by epoch: 0.66477, 0.39251, 0.29663.
+- Validation accuracy by epoch: 0.73285, 0.80505, 0.81949.
+- Validation macro-F1 by epoch: 0.71407, 0.80111, 0.81622.
+- Final validation loss: 0.45191 on 277 examples.
+- Final validation accuracy: 0.81949 (approximately 227/277 examples).
+- Final validation macro-F1: 0.81622.
+
+**Gradient capture**
+- Exactly 50 optimizer-step captures were recorded.
+- All 12 Transformer blocks had a score.
+- The reported arithmetic mean joint gradient norms ranged from 0.39952 (block 2) to 1.74784 (block 11); across-block mean of the reported scores was approximately 0.97863.
+- Relative-to-mean scores range from approximately 0.408 (block 2) to 1.786 (block 11). This shows measurable layer variation in this one seed, but does not demonstrate reliability or causality.
+
+**Parameter and artifact accounting**
+- LoRA A/B factor parameters: 1,179,648.
+- Total trainable parameters including modules_to_save: 1,771,778.
+- Saved `adapter_model.safetensors`: 7,094,672 bytes.
+- Adapter directory also contains PEFT config/README and tokenizer files.
+- The student reports the seed-42 model parameter dtype as FP32.
+
+**Interpretation and caveats**
+- Training loss decreased monotonically; validation accuracy and macro-F1 increased each epoch. Validation loss fell through epoch 2 and rose modestly in epoch 3 (0.43064 to 0.45191) while accuracy/F1 improved. This is worth noting, but a single validation run is insufficient to diagnose overfitting.
+- This is one seed on one model and one task. It is a parent-adapter baseline only; no pruning/compression or GARS benefit has yet been measured.
+- The 7,094,672-byte file is the complete saved adapter artifact, not a direct measurement of deployed storage after any truncation. Tokenizer files are separate files in the same directory.
+- Detailed run revision, package versions, dataset fingerprints, and saved tensor shapes still need to be inspected from `run_metadata.json` and `adapter_model.safetensors`.
+
+**Next gate:** validate the saved tensor inventory, confirm the stored LoRA A/B factor count and rank-32 module layout, reload the PEFT adapter onto a fresh FP32 DeBERTa sequence-classification base, and reproduce the stored validation metrics. Do not start seeds 123 and 999 until this check passes.
