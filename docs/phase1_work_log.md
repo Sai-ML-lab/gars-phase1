@@ -198,3 +198,19 @@ This utility has been committed but has not yet been run on the user's machine. 
 The first run of `scripts/validate_parent_adapter.py` reached validation evaluation but failed with `KeyError: 'labels'`. The validator tokenization function had removed the original GLUE RTE columns without preserving `label`; unlike the training runner, it had not copied `batch["label"]` into the tokenized batch. Consequently, `DataCollatorWithPadding` had no labels to collate.
 
 **Correction committed:** the validator now preserves `encoded["label"] = batch["label"]`, matching the exact tokenization/collation convention used by the parent training runner. This is a validation-script bug, not an adapter or model failure. Reload equivalence remains untested until the validator is rerun.
+
+
+## 15 November 2026 — seed 42 parent adapter reload validation passed
+
+The student ran `scripts/validate_parent_adapter.py` on MPS. All checks passed:
+- Saved adapter contains 52 tensors, including 24 LoRA A/B module pairs, 2 classifier tensors and 2 pooler tensors.
+- Every one of the 24 adapted projections has rank 32: query_proj and value_proj in each of the 12 DeBERTa blocks.
+- Saved LoRA A/B factor count is 1,179,648, exactly matching the parent run metadata.
+- Saved LoRA weights file is 7,094,672 bytes; saved adapter tensors are FP32.
+- A fresh DeBERTa-v3-base FP32 sequence-classification model was wrapped with the saved PEFT adapter and evaluated on the same 277-example GLUE RTE validation split.
+- Reloaded accuracy = 0.8194945848375451, macro-F1 = 0.8162154989384289, and loss = 0.45190566916550906; all three absolute differences from the parent run metadata were exactly 0.0.
+- The validator wrote `results/v1_parent_rte/seed_42/reload_validation.json`.
+
+**Conclusion:** seed 42's parent adapter serialization, tensor inventory and reload equivalence are validated. This remains a single-seed, single-task parent baseline; no compression result or GARS advantage is claimed.
+
+**Next action:** run parent training for seeds 123 and 999 with the identical V1 config and FP32 runner, then run the same adapter reload validator for each seed. Do not start pruning comparisons until both additional seeds have passed their own reload checks.
