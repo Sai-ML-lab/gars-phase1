@@ -472,3 +472,15 @@ The script reads the 12 block-level scores from each parent's `gradient_importan
 The analysis intentionally reports correlations without p-values. The gradient-to-GARS-rank relation is explicitly marked as policy-coupled rather than independent evidence. Added the method and statistical limitations to `docs/experiment_protocol_v1.md`.
 
 **Next gate:** pull main; run full Ruff and pytest; fix any local quality-gate findings before running the mechanism analysis. The expected test count increases by six. Then run the analysis on the existing three seeds and share the output for scientific interpretation. No new experimental finding is claimed until that local script has executed successfully.
+
+
+## 15 November 2026 — mechanism-analysis tooling added
+
+Added a local analysis workflow using the already saved parent gradient-importance files and the three policy allocation reports per seed:
+- `src/gars/diagnostics.py`: tie-aware Spearman rank correlation, descriptive mean/sample-SD summaries and keyed pairwise profile comparisons.
+- `scripts/analyze_gars_mechanisms.py`: validates the pinned base revision, all 12 gradient layers, 24 adapted projection modules, 50-step capture counts, equal spectra across methods and successful export reload checks. It computes pairwise cross-seed gradient-ranking consistency, normalized per-layer gradient-importance variability, cross-seed spectral entropy profile stability, cross-seed retained-rank allocation stability, and within-seed gradient/entropy/rank associations. It writes a JSON report with layer- and module-level profiles.
+- `tests/test_diagnostics.py` and `tests/test_mechanism_analysis.py`: tests for the rank-correlation helpers and synthetic end-to-end artifact loading/report construction.
+
+**Important data limitation:** The V1 gradient artifact contains each layer's arithmetic mean over the final 50 updates plus accumulator sums/counts, but does not preserve the 50 individual step-level scores. Thus the present saved artifacts support cross-seed rank reliability, not within-window temporal variance, autocorrelation or minibatch-level stability. The script marks temporal within-window reliability as not estimable. Measuring it requires a future instrumented parent-training run that persists per-update layer scores; it cannot be reconstructed from the current means.
+
+**Next action:** pull the latest main branch; run full-tree Ruff and pytest; run `python scripts/analyze_gars_mechanisms.py` against the existing local seed 42/123/999 artifacts. Inspect cross-seed Spearman concordance and the within-seed associations cautiously as descriptive evidence. Do not claim significance or temporal reliability from these three runs.
