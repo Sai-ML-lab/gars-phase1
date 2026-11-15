@@ -400,3 +400,30 @@ Adapter weight file sizes were 5,208,424 bytes (GARS), 5,208,448 bytes (global s
 **Interpretation and limitations:** this is one seed on one model/task and 277 validation examples. It is preliminary evidence that GARS can reach the intended physical budget while retaining the parent validation accuracy/F1 on seed 42, and that it compares favorably with the two alternatives on this seed. It does not establish a robust advantage, significance, generalization to other seeds/models/tasks, or the proposal's multi-scale objective. No latency measurement has been made.
 
 **Next action:** run the same exporter for seeds 123 and 999 with the unchanged pinned V1 configuration. Preserve all seed-level outputs and compare paired policy differences across the three parent seeds before making an aggregate claim.
+
+
+## 15 November 2026 — pruning comparisons completed for seeds 123 and 999
+
+The student ran the V1 post-hoc pruning exporter for seeds 123 and 999 on MPS. Both commands completed and saved their `comparison_summary.json` files. Combined with the earlier seed-42 run, all three seeds now have results for all three pruning policies.
+
+The terminal output reports the same realized physical A/B parameter count for all methods and seeds: 708,096 from 1,179,648 parent parameters, a 39.9739583% reduction. Each method reached the end of the exporter and saved its comparison summary. The seed-42 JSON explicitly records `reload_validation = passed` for all three methods. For seeds 123 and 999, the exporter continued through all three methods and saved the summary after the per-method evaluation/rank/scaling checks.
+
+Displayed terminal metrics (seed 123 and 999 are printed to five decimal places):
+
+| Seed | Policy | Accuracy | Macro-F1 | Validation loss |
+|---|---|---:|---:|---:|
+| 42 | GARS | 0.81949 | 0.81622 | 0.45360 |
+| 42 | Global singular value | 0.81588 | 0.81235 | 0.45512 |
+| 42 | Uniform local energy | 0.81949 | 0.81584 | 0.46013 |
+| 123 | GARS | 0.84477 | 0.84359 | 0.43367 |
+| 123 | Global singular value | 0.84477 | 0.84359 | 0.43325 |
+| 123 | Uniform local energy | 0.84477 | 0.84339 | 0.43469 |
+| 999 | GARS | 0.83032 | 0.82882 | 0.44905 |
+| 999 | Global singular value | 0.83032 | 0.82882 | 0.44926 |
+| 999 | Uniform local energy | 0.83032 | 0.82882 | 0.45051 |
+
+**Preliminary cross-seed observations:** GARS matches parent accuracy and macro-F1 at displayed precision on all three seeds. GARS validation loss is lower than uniform-local-energy loss on all three seeds. Against global singular-value pruning, GARS has lower validation loss on seeds 42 and 999 but slightly higher loss on seed 123. Thus, these pilot observations do not support a claim that GARS dominates every baseline. The more defensible observation is that GARS preserves parent-level classification scores at the displayed precision and has a consistent validation-loss advantage over uniform local energy in this three-seed DeBERTa/RTE pilot.
+
+The repeated Transformers load reports list DeBERTa pretraining MLM-head tensors as unexpected and sequence-classification classifier/pooler weights as missing when the base pretraining checkpoint is loaded into `DebertaV2ForSequenceClassification`. These are architecture/task-head loading differences expected when initializing a sequence-classification model from the base pretraining checkpoint; the trained classifier and pooler are carried in the PEFT parent adapter via `modules_to_save`. The warning alone is not a failure signal. The exporter continued to validation and wrote comparison summaries for each method/seed.
+
+**Required next action before final aggregate claims:** read all three exact local `comparison_summary.json` files and compute means, sample standard deviations and paired per-seed differences from the full-precision JSON values (not the five-decimal console output). Include rank allocation distributions and confirm the reload flags for every seed/method in that aggregate. Do not infer latency or results on larger model scales from these runs.
