@@ -66,6 +66,7 @@ def _load_actual_gars(
         "seed": seed,
         "validation": result["validation"],
         "achieved_parameters": int(result["achieved_parameters"]),
+        "parent_factor_parameters": int(summary["parent_lora_A_B_parameters"]),
         "ranks_by_module": ranks,
         "allocation": allocation,
         "summary": summary,
@@ -367,8 +368,8 @@ def main() -> None:
                 expected_budget,
                 original_importance_by_seed[seed],
             )
-            if int(result["allocation"]["parent_lora_A_B_parameters"]) != int(
-                observed[seed]["allocation"]["parent_lora_A_B_parameters"]
+            if int(result["summary"]["parent_lora_A_B_parameters"]) != int(
+                observed[seed]["parent_factor_parameters"]
             ):
                 raise ValueError(f"Parent factor budget changed for seed {seed}.")
             results_by_shift[shift][seed] = result
