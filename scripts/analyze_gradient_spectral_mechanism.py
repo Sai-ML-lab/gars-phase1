@@ -432,7 +432,7 @@ def _format_mean_std(item: dict[str, float | None]) -> str:
 
 
 def _print_summary(report: dict[str, Any]) -> None:
-    print("\\nGRADIENT SIGNAL RELIABILITY")
+    print("\nGRADIENT SIGNAL RELIABILITY")
     pairwise = report["gradient_signal_reliability"][
         "pairwise_normalized_importance_correlations"
     ]
@@ -445,7 +445,7 @@ def _print_summary(report: dict[str, Any]) -> None:
             f"rank-order MAE={_format_value(agreement['mean_absolute_rank_difference'])}"
         )
 
-    print("\\nGRADIENT IMPORTANCE VS. SPECTRAL ENTROPY (12 BLOCKS PER SEED)")
+    print("\nGRADIENT IMPORTANCE VS. SPECTRAL ENTROPY (12 BLOCKS PER SEED)")
     for seed, item in report["spectral_concentration"][
         "gradient_importance_vs_layer_mean_entropy_by_seed"
     ].items():
@@ -455,7 +455,7 @@ def _print_summary(report: dict[str, Any]) -> None:
             f"Kendall={_format_value(item['kendall_tau_b'])}"
         )
 
-    print("\\nCROSS-SEED RANK-ALLOCATION STABILITY")
+    print("\nCROSS-SEED RANK-ALLOCATION STABILITY")
     for method, method_data in report["rank_allocation_stability"][
         "pairwise_stability"
     ].items():
@@ -479,7 +479,7 @@ def _print_summary(report: dict[str, Any]) -> None:
     ranks = report["rank_allocation_stability"][
         "per_layer_mean_retained_rank_across_seeds"
     ]
-    print("\\nPER-BLOCK SUMMARY (MEAN±SAMPLE SD ACROSS SEEDS)")
+    print("\nPER-BLOCK SUMMARY (MEAN±SAMPLE SD ACROSS SEEDS)")
     print("block | norm-gradient | gradient-rank | H_sq | GARS-rank | global-rank | uniform-rank")
     for layer in range(len(EXPECTED_LAYERS)):
         key = str(layer)
@@ -493,7 +493,7 @@ def _print_summary(report: dict[str, Any]) -> None:
         ]
         print(f"{layer:>5} | " + " | ".join(values))
 
-    print("\\nGARS THRESHOLD CLIPPING")
+    print("\nGARS THRESHOLD CLIPPING")
     for seed, item in report["seed_level"].items():
         print(
             f"seed {seed}: at lower bound={item['gars_thresholds_at_lower_bound']}, "
