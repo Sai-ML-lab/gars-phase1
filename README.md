@@ -139,3 +139,18 @@ python experiments/train_parent_rte.py \
 ```
 
 Adapter weight files are ignored by Git; keep them locally or on the experiment machine. Commit the small metadata/JSON results and logs, but never commit model weights or credentials. This runner creates the common parent checkpoint; post-hoc pruning/export and reload validation are the next implementation stage.
+
+
+## 7. Matched-budget post-hoc pruning comparison
+
+After all three parent adapters are trained and reload-validated, pin the exact DeBERTa Hub commit SHA in `configs/v1_deberta_rte.json` before evaluating pruned adapters. The pruning exporter refuses a floating `main` revision unless the user explicitly opts in after verifying the cached snapshot.
+
+Run one seed at a time, beginning with seed 42:
+
+```bash
+python scripts/run_pruning_comparison.py --seed 42 --device mps
+```
+
+The script builds uniform-local-energy, global-singular-value and GARS exports at the configured 60% physical LoRA A/B parameter target, reloads every export on a fresh FP32 base, checks the realized per-module ranks and LoRA scaling multiplier, and evaluates the GLUE RTE validation split. Inspect `results/v1_pruned/seed_42/comparison_summary.json` and each method's `allocation.json` before running seeds 123 and 999. Use `--overwrite` only when intentionally rebuilding that seed's policy exports.
+
+Generated adapter binaries/tokenizer copies under `results/v1_pruned/*/*/adapter/` are ignored by Git; commit the small JSON allocation and comparison reports after review, not binary adapter weights.
