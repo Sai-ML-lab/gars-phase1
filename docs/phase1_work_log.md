@@ -282,3 +282,17 @@ All three reload reports display base-model revision `main`. The original traini
 - The exporter explicitly rejects unsupported DoRA, LoRA-bias, QALoRA and fan-in/fan-out parent configurations.
 
 **Not yet verified:** the new script has not yet been run on the student's machine. Run Ruff and pytest, then use seed 42 first. Do not launch all three pruning comparisons until seed 42 exports load with the expected per-module ranks and preserved scaling.
+
+
+## 15 November 2026 — package-version test and metadata synchronization
+
+The student ran the expanded test suite after the pruning-export utilities were added. Result: 28 passed and one failure in `test_package_imports`; the implementation package had been bumped to `0.3.0`, while the test still asserted `0.2.0`.
+
+**Correction committed:**
+- Updated `tests/test_imports.py` to expect `0.3.0`.
+- Added public import checks for `alpha_for_preserved_scaling` and `peft_module_pattern_key`.
+- Updated `pyproject.toml` project metadata to `0.3.0` to keep installed package metadata synchronized with `src/gars/__init__.py`.
+
+The previous run's 28 passing tests remain valid; the failing assertion was a stale version expectation. Rerun Ruff and pytest after pulling the version synchronization commit. With the local editable install, run `python -m pip install -e .` once to refresh installed distribution metadata before experiments.
+
+**Workflow note from the student:** the M5 Max is the compute machine, but results/files cannot be transferred out and the student cannot git-push from that machine. Source-code changes will therefore be committed through the connected GitHub integration; the student only needs to pull on the M5 Max, run commands locally, and paste compact terminal/JSON outputs into chat. Keep large adapter/model binaries local and avoid requiring git push or file transfer.
