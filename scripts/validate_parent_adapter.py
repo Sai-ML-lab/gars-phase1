@@ -261,8 +261,16 @@ def main() -> None:
         config["training"]["gradient_capture_last_optimizer_steps"]
     ):
         raise RuntimeError("Gradient-capture step count does not match the V1 config.")
-    if len(gradients.get("importance_by_transformer_block", {})) != 12:
-        raise RuntimeError("Expected gradient scores for all 12 DeBERTa Transformer blocks.")
+    expected_layers = int(
+        config["model"].get(
+            "num_transformer_layers",
+            len(gradients.get("importance_by_transformer_block", {})),
+        )
+    )
+    if len(gradients.get("importance_by_transformer_block", {})) != expected_layers:
+        raise RuntimeError(
+            f"Expected gradient scores for all {expected_layers} Transformer blocks."
+        )
 
     tensor_report = _inspect_adapter_tensors(
         adapter_path,
