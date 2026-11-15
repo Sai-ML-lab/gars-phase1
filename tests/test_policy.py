@@ -92,3 +92,28 @@ def test_gars_budget_calibration_reports_when_target_is_unreachable() -> None:
     )
     assert result.achieved_parameters >= result.minimum_parameters
     assert not result.target_in_reachable_range
+
+
+def test_beta_zero_gars_exactly_matches_uniform_energy_allocation() -> None:
+    spectra = _spectra()
+    importance = {0: 1.0, 1: 1.6}
+    target = 50
+    gars = calibrate_gars_budget(
+        spectra,
+        importance_by_layer=importance,
+        target_parameters=target,
+        beta=0.0,
+        min_rank=1,
+    )
+    uniform = calibrate_uniform_energy_budget(
+        spectra,
+        target_parameters=target,
+        min_rank=1,
+    )
+
+    assert gars.ranks_by_module == uniform.ranks_by_module
+    assert gars.achieved_parameters == uniform.achieved_parameters
+    assert set(gars.thresholds_by_layer) == set(importance)
+    assert len(set(gars.thresholds_by_layer.values())) == 1
+
+
