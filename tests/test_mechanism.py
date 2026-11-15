@@ -1,6 +1,7 @@
 import pytest
 
 from gars.mechanism import correlation_summary, descending_average_ranks, rank_agreement
+from scripts.analyze_gradient_spectral_mechanism import METHODS, analyze
 
 
 def test_descending_average_ranks_uses_one_for_largest_and_average_for_ties():
@@ -40,8 +41,6 @@ def test_rank_agreement_rejects_empty_inputs():
 
 
 def test_mechanism_analysis_builds_cross_seed_diagnostics():
-    from scripts.analyze_gradient_spectral_mechanism import METHODS, analyze
-
     artifacts = {}
     for seed_offset, seed in enumerate((42, 123, 999)):
         importance = {
