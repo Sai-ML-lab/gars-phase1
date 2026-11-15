@@ -78,7 +78,10 @@ def _load_validation(
         tokenize_batch,
         batched=True,
         remove_columns=validation_raw.column_names,
-        desc="Tokenizing RTE validation split for adapter reload check",
+        desc=(
+            f"Tokenizing GLUE {dataset_cfg['config']} validation split "
+            "for adapter reload check"
+        ),
     )
     collator = DataCollatorWithPadding(tokenizer=tokenizer, return_tensors="pt")
     return DataLoader(
