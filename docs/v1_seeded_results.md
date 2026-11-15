@@ -247,3 +247,12 @@ This result does not support a claim that the observed gradient-to-layer alignme
 The defensible conclusion is that gradient-score alignment is consequential but this pilot has not established that the naturally observed alignment is the best or reliably beneficial alignment. The analysis remains descriptive: three parent-training seeds, one model/task and the RTE validation set. The 11 cyclic shifts are structured rotations, not random samples from all possible assignments and not a formal permutation test. Do not claim statistical significance or causality.
 
 The exact 33 seed-by-shift observations, rank-allocation comparisons, run count and reload flags should be inspected from results/v1_gradient_permutation/gradient_permutation_summary.json before finalizing the Phase 1 mechanism section.
+
+
+### Exact cyclic-alignment extraction
+
+The follow-up extraction verified 33 completed shift/seed runs, a common 708,096 physical A/B parameter count and 33/33 successful reload checks. The observed GARS loss ranked 7th, 5th and 2nd (rank 1 = lowest loss) among the observed alignment plus 11 cyclic controls for seeds 42, 123 and 999 respectively. Eleven of the 33 cyclic controls had lower loss than observed GARS. The average cyclic-control loss was lower than observed GARS for seeds 42 and 123, but higher for seed 999.
+
+Across the equally weighted 33 cyclic observations, mean loss was approximately 0.445696600, compared with 0.445440045 for observed GARS. This is a small descriptive advantage for the observed assignment (~0.000256555), with substantial seed/shift variation. The observed alignment was not the lowest-loss assignment for any seed. This does not establish consistent superiority or causality.
+
+See [the detailed cyclic alignment report](gars_gradient_alignment_ablation.md) for all 33 loss observations, rank changes, rank-profile correlations and the full interpretation boundary.
