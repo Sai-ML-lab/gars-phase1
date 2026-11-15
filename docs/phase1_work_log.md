@@ -125,3 +125,20 @@ The user successfully ran the numerical preflight through base-model forward, PE
 - Run metadata records FP32 parameter dtype and AdamW epsilon.
 
 **Next action:** rerun Ruff and all 21 tests, then rerun the five-step MPS numerical preflight only. Do not launch the three-epoch training run until the FP32 diagnostic passes. Do not interpret the incomplete FP16 run as a result.
+
+
+## 15 November 2026 — FP32 MPS numerical preflight passed
+
+The user reran `scripts/diagnose_deberta_rte.py` on MPS after the explicit-FP32 change. The preflight passed:
+- All base-model parameters loaded as FP32.
+- Base-model first-batch forward was finite (loss 0.66159737).
+- PEFT first-batch forward was finite (loss 0.64707077).
+- First backward was finite (pre-clipping global gradient norm 2.55375123).
+- Five subsequent optimizer updates completed with finite loss, gradient norm and trainable parameters. Logged losses: 0.60464418, 0.88693833, 0.58858389, 0.79867661, 0.56207579.
+- The first update after the initial backward and all five following updates passed parameter-finiteness checks.
+
+This validates the short MPS FP32 numerical preflight only. It is not a parent-training experiment and supplies no reportable accuracy or compression result.
+
+The loading report again showed the pretraining-only MLM/masking heads as unexpected and the sequence-classification classifier/pooler as missing. No mismatched keys or loading errors were reported. This is consistent with transfer from the DeBERTa pretraining checkpoint to the sequence-classification task; the newly initialized downstream head must be trained on RTE.
+
+**Next action:** rerun Ruff and all unit tests on the latest pulled code. If both pass, launch only the complete seed-42 FP32 parent-adapter run. Inspect epoch logs, 50-step gradient coverage, validation results and adapter files before running any additional seeds.
