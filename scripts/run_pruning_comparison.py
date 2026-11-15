@@ -111,8 +111,8 @@ def _factor_inventory(
             raise ValueError(
                 f"Incomplete LoRA factors for {module_name}: found {sorted(factors)}."
             )
-        a_key, a_tensor = factors["A"]
-        b_key, b_tensor = factors["B"]
+        _a_key, a_tensor = factors["A"]
+        _b_key, b_tensor = factors["B"]
         if a_tensor.ndim != 2 or b_tensor.ndim != 2:
             raise ValueError(f"LoRA factors must be matrices for {module_name}.")
         if a_tensor.shape[0] != b_tensor.shape[1]:
