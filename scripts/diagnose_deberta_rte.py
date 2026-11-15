@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import random
 import sys
 from pathlib import Path
@@ -234,10 +233,19 @@ def main() -> None:
     optimizer.step()
     optimizer.zero_grad(set_to_none=True)
 
-    _finite("First updated classifier weight", peft_model.base_model.model.classifier.modules_to_save.default.weight)
+    bad_parameters = [
+        name for name, parameter in trainable
+        if not bool(torch.isfinite(parameter).all().item())
+    ]
+    if bad_parameters:
+        raise RuntimeError(
+            "Non-finite trainable parameters after the first optimizer step: "
+            + ", ".join(bad_parameters[:10])
+        )
 
-    print("Checking the first batches after optimizer updates...")
+    print("Checking subsequent batches after optimizer updates...")
     iterator = iter(loader)
+    next(iterator, None)  # The first batch was already used for the initial update.
     for step in range(1, args.steps + 1):
         try:
             batch = next(iterator)
@@ -265,6 +273,15 @@ def main() -> None:
             error_if_nonfinite=True,
         )
         optimizer.step()
+        bad_parameters = [
+            name for name, parameter in trainable
+            if not bool(torch.isfinite(parameter).all().item())
+        ]
+        if bad_parameters:
+            raise RuntimeError(
+                f"Non-finite trainable parameter after diagnostic step {step}: "
+                + ", ".join(bad_parameters[:10])
+            )
         print(
             f"step={step} loss={float(step_outputs.loss.item()):.8f} "
             f"grad_norm={float(norm.item()):.8f}",
