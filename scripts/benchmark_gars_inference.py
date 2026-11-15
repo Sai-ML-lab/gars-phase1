@@ -11,6 +11,7 @@ import platform
 import statistics
 import time
 from pathlib import Path
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 import numpy as np
@@ -24,11 +25,6 @@ from transformers import (
     AutoTokenizer,
     DataCollatorWithPadding,
 )
-
-try:
-    from importlib.metadata import version
-except ImportError:  # pragma: no cover - Python 3.11+ has importlib.metadata
-    version = None  # type: ignore[assignment]
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SEEDS = (42, 123, 999)
@@ -87,11 +83,9 @@ def _model_load_dtype_kwargs() -> dict[str, torch.dtype]:
 
 
 def _package_version(name: str) -> str | None:
-    if version is None:
-        return None
     try:
         return version(name)
-    except Exception:  # Package metadata may not exist in editable environments.
+    except PackageNotFoundError:
         return None
 
 
@@ -451,7 +445,10 @@ def main() -> None:
             "inference_mode": "torch.inference_mode; model.eval",
             "validation_subset": "first sample_count examples in official validation order",
             "drop_last": True,
-            "sample_count": min(args.sample_count, len(batches_by_size[args.batch_sizes[0]]) * args.batch_sizes[0]),
+            "requested_sample_count": args.sample_count,
+        "effective_examples_by_batch_size": {
+            str(size): len(batches_by_size[size]) * size for size in args.batch_sizes
+        },
             "warmup_steps_per_condition": args.warmup_steps,
             "timed_steps_per_condition": args.timed_steps,
             "merge_equivalence_tolerance": args.merge_tolerance,
