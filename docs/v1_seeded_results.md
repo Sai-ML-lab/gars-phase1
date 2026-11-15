@@ -145,3 +145,61 @@ The sweep completed without triggering its two rank-equivalence guards: beta=0 r
 - The evidence suggests that beta affects where ranks are allocated more visibly than it affects aggregate validation performance on RTE.
 
 The console output is rounded to five decimal places. Use the saved `results/v1_beta_sweep/beta_sweep_summary.json` for exact per-seed, paired comparisons and threshold clipping counts before writing final quantitative claims. The V1 beta remains 0.5; this sensitivity sweep alone is not sufficient grounds to select a new beta. The validation split is not an independent test set and must not be used to select beta and then presented as unbiased evaluation.
+
+
+## Expanded exact beta-sensitivity diagnostics
+
+The student subsequently supplied the exact per-beta aggregate and per-seed output from the local beta-sweep summary. Values below retain the precision shown in that output. Each beta uses the same three parent adapters and the same physical A/B parameter budget; beta 0.00 is exactly rank-equivalent to uniform local energy, and beta 0.50 reproduces the frozen V1 allocation.
+
+### Aggregate metrics and rank-allocation stability
+
+Mean ± sample SD across seeds 42, 123 and 999:
+
+| Beta | Accuracy | Macro-F1 | Validation loss | Paired loss change vs parent | Cross-seed module-rank Spearman rho |
+|---:|---:|---:|---:|---:|---:|
+| 0.00 | 0.83152828 ± 0.01267828 | 0.82934878 ± 0.01377844 | 0.44844453 ± 0.01284235 | +0.00400734 ± 0.00379167 | 0.93196370 ± 0.01267539 |
+| 0.25 | 0.83152828 ± 0.01267828 | 0.82954115 ± 0.01370222 | 0.44539351 ± 0.01042797 | +0.00095632 ± 0.00099421 | 0.86575494 ± 0.07284363 |
+| 0.50 | 0.83152828 ± 0.01267828 | 0.82954115 ± 0.01370222 | 0.44544005 ± 0.01043943 | +0.00100286 ± 0.00100317 | 0.82880516 ± 0.10896428 |
+| 0.75 | 0.83152828 ± 0.01267828 | 0.82954115 ± 0.01370222 | 0.44542829 ± 0.01046567 | +0.00099110 ± 0.00103638 | 0.78547120 ± 0.12447326 |
+| 1.00 | 0.83152828 ± 0.01267828 | 0.82954115 ± 0.01370222 | 0.44536201 ± 0.01038823 | +0.00092482 ± 0.00094576 | 0.75841963 ± 0.14920505 |
+
+Paired accuracy change versus the parent is zero for every beta. Paired macro-F1 change is -0.00019237 ± 0.00018608 at beta 0 and zero at beta 0.25–1.00. The nonzero-beta loss means differ only in the fifth decimal place; beta 0.25 is lower than beta 0.50 by 0.00004654. This is not a meaningful basis for selecting a new beta from three validation seeds.
+
+### Threshold clipping counts
+
+Each cell is lower-bound clips / upper-bound clips among the 12 block thresholds:
+
+| Seed | Beta 0.00 | Beta 0.25 | Beta 0.50 | Beta 0.75 | Beta 1.00 |
+|---:|---:|---:|---:|---:|---:|
+| 123 | 0 / 0 | 0 / 8 | 1 / 8 | 1 / 8 | 1 / 8 |
+| 42 | 0 / 0 | 0 / 7 | 2 / 8 | 3 / 8 | 3 / 8 |
+| 999 | 0 / 0 | 0 / 8 | 0 / 8 | 0 / 8 | 0 / 8 |
+
+At beta 0, the threshold is constant within each seed: 0.97766155 (seed 123), 0.97101897 (seed 42), and 0.98057332 (seed 999). At beta 0.25, seven or eight layers reach the 0.99 upper bound, while none reach the 0.80 lower bound. At beta 0.50 and above, lower-bound clipping appears in some seeds. The clipping limits therefore materially constrain the implemented schedule, particularly as beta increases.
+
+### Per-seed rank changes relative to beta 0
+
+The module count is out of 24. Mean absolute rank change is averaged over those 24 modules.
+
+| Beta | Seed | Validation-loss change vs beta 0 | Modules with changed rank | Mean absolute rank change |
+|---:|---:|---:|---:|---:|
+| 0.25 | 123 | -0.00105711 | 23 | 6.0833 |
+| 0.25 | 42 | -0.00660409 | 23 | 7.1667 |
+| 0.25 | 999 | -0.00149186 | 23 | 5.0833 |
+| 0.50 | 123 | -0.00101836 | 23 | 6.0833 |
+| 0.50 | 42 | -0.00653120 | 23 | 8.0000 |
+| 0.50 | 999 | -0.00146388 | 23 | 5.0833 |
+| 0.75 | 123 | -0.00107337 | 22 | 6.0833 |
+| 0.75 | 42 | -0.00656936 | 23 | 8.0000 |
+| 0.75 | 999 | -0.00140598 | 22 | 5.0833 |
+| 1.00 | 123 | -0.00101451 | 23 | 6.4167 |
+| 1.00 | 42 | -0.00656936 | 23 | 8.0000 |
+| 1.00 | 999 | -0.00166368 | 23 | 5.4167 |
+
+All 15 beta/seed export-reload checks passed. The beta-zero equivalence guard and beta-0.50 V1-rank reproduction guard also passed. These checks establish allocation/reload consistency for this sweep; they do not establish performance generalization.
+
+### Updated interpretation and decision
+
+The sweep makes the structural effect of beta clearer: relative to beta 0, each nonzero beta changes 22 or 23 of the 24 module ranks in every seed, with mean absolute shifts of roughly 5–8 ranks. Yet validation accuracy is unchanged at the reported precision, and macro-F1 is unchanged for all nonzero beta values. Mean rank-profile stability decreases monotonically from 0.9320 at beta 0 to 0.7584 at beta 1.00.
+
+This supports a bounded descriptive conclusion: stronger gradient conditioning changes the allocation more than it changes aggregate RTE validation metrics in this pilot, and it is associated with lower cross-seed rank-allocation stability. It does not show that beta 0.25 is optimal, nor that the gradient term improves generalization. Keep beta 0.50 frozen for V1; report the beta sweep as a sensitivity analysis rather than tuning V1 on the same validation split. All findings remain limited to one model, one task, three seeds and the GLUE RTE validation set.
