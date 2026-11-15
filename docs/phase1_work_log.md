@@ -455,3 +455,20 @@ Paired mean GARS-minus-baseline differences (mean ± sample SD):
 GARS-parent mean paired changes are accuracy 0, macro-F1 0, loss +0.001003 ± 0.001003. Thus, GARS matches parent classification metrics at the reported precision but does not preserve parent loss. GARS has lower validation loss than uniform local energy in all three seeds. Against global singular-value pruning, GARS has lower loss on seeds 42 and 999 but higher loss on seed 123; the average difference is small. This must not be described as consistent domination of the global baseline.
 
 A dedicated `docs/v1_seeded_results.md` report has been added with full tables, paired results, limitations, and a carefully bounded Phase 1 conclusion. This remains a one-model, one-task, three-seed validation pilot. No significance claim, larger-scale generalization claim, test-set claim, or latency claim is supported yet.
+
+
+## 15 November 2026 — mechanism-analysis implementation added
+
+Added `src/gars/mechanism.py` with tested descriptive helpers for descending ranks, Pearson/Spearman/Kendall coefficients and rank agreement. Added `tests/test_mechanism.py` with unit coverage, and `scripts/analyze_gradient_spectral_mechanism.py` to analyze the three existing seeds without retraining or changing adapters.
+
+The script reads the 12 block-level scores from each parent's `gradient_importance.json` and the per-module rank/entropy fields from each policy's `allocation.json`. It validates the 50-step gradient capture, 12 blocks, 24 adapted modules, shared module inventories and same-parent entropy consistency across policies. It produces:
+- normalized gradient-importance and rank consistency across seeds;
+- per-layer gradient-score mean/sample SD and rank mean/sample SD;
+- per-seed gradient-versus-layer-mean-squared-entropy correlations;
+- module-level entropy-versus-retained-rank diagnostics per policy;
+- pairwise module-level and block-level retained-rank stability for each policy;
+- per-layer retained-rank mean/sample SD and GARS threshold-bound counts.
+
+The analysis intentionally reports correlations without p-values. The gradient-to-GARS-rank relation is explicitly marked as policy-coupled rather than independent evidence. Added the method and statistical limitations to `docs/experiment_protocol_v1.md`.
+
+**Next gate:** pull main; run full Ruff and pytest; fix any local quality-gate findings before running the mechanism analysis. The expected test count increases by six. Then run the analysis on the existing three seeds and share the output for scientific interpretation. No new experimental finding is claimed until that local script has executed successfully.
