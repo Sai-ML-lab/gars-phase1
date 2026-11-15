@@ -203,3 +203,47 @@ All 15 beta/seed export-reload checks passed. The beta-zero equivalence guard an
 The sweep makes the structural effect of beta clearer: relative to beta 0, each nonzero beta changes 22 or 23 of the 24 module ranks in every seed, with mean absolute shifts of roughly 5–8 ranks. Yet validation accuracy is unchanged at the reported precision, and macro-F1 is unchanged for all nonzero beta values. Mean rank-profile stability decreases monotonically from 0.9320 at beta 0 to 0.7584 at beta 1.00.
 
 This supports a bounded descriptive conclusion: stronger gradient conditioning changes the allocation more than it changes aggregate RTE validation metrics in this pilot, and it is associated with lower cross-seed rank-allocation stability. It does not show that beta 0.25 is optimal, nor that the gradient term improves generalization. Keep beta 0.50 frozen for V1; report the beta sweep as a sensitivity analysis rather than tuning V1 on the same validation split. All findings remain limited to one model, one task, three seeds and the GLUE RTE validation set.
+
+
+## Cyclic gradient-to-layer alignment ablation — preliminary aggregate
+
+The student completed the 11 non-identity cyclic shifts across seeds 42, 123 and 999. The runner reports all 11 shift summaries and per-seed distributions. Each cyclic shift preserves the within-seed gradient-score multiset while reassigning those scores to different Transformer blocks. The original observed-alignment GARS results are the reference.
+
+### Mean validation loss across seeds by cyclic shift
+
+The following values are the six-decimal console summaries supplied by the student; the saved JSON is the source for the full-precision analysis.
+
+| Alignment | Mean validation loss | Paired loss difference vs observed GARS |
+|---|---:|---:|
+| Observed GARS | 0.445440 (original three-seed aggregate) | Reference |
+| Cyclic shift 1 | 0.445255 | -0.000185 |
+| Cyclic shift 2 | 0.445324 | -0.000116 |
+| Cyclic shift 3 | 0.446019 | +0.000579 |
+| Cyclic shift 4 | 0.446888 | +0.001448 |
+| Cyclic shift 5 | 0.446285 | +0.000845 |
+| Cyclic shift 6 | 0.444026 | -0.001414 |
+| Cyclic shift 7 | 0.451819 | +0.006378 |
+| Cyclic shift 8 | 0.437192 | -0.008248 |
+| Cyclic shift 9 | 0.449263 | +0.003823 |
+| Cyclic shift 10 | 0.444580 | -0.000860 |
+| Cyclic shift 11 | 0.446011 | +0.000571 |
+
+Averaging the 11 displayed shift means gives approximately 0.445697, compared with 0.445440 for observed GARS. Thus, the original alignment has a small average loss advantage of approximately 0.000257 over the cyclic controls when averaging these rounded shift summaries. Four of the eleven shifts (1, 2, 6 and 10) have a lower displayed mean loss than observed GARS; the other seven have a higher loss. The shift-8 mean is especially low and shift 7 especially high, indicating material variation among the structured controls.
+
+### Per-seed comparison against the cyclic-shift distribution
+
+| Seed | Observed GARS loss | Mean loss across 11 shifts | Minimum shift loss | Maximum shift loss |
+|---:|---:|---:|---:|---:|
+| 42 | 0.453595 | 0.451294 | 0.437061 | 0.457203 |
+| 123 | 0.433675 | 0.433203 | 0.425246 | 0.435647 |
+| 999 | 0.449050 | 0.452592 | 0.448906 | 0.464933 |
+
+The observed alignment has higher (worse) loss than the cyclic-shift mean on seeds 42 and 123, but lower (better) loss on seed 999. The observed loss lies within the reported cyclic-shift range for every seed. It is therefore not consistently superior to the cyclic reassignment controls.
+
+### Bounded interpretation
+
+This result does not support a claim that the observed gradient-to-layer alignment improves validation loss over alternative layer assignments. At the displayed precision, its mean loss is only about 0.000257 better than the average cyclic control, and the direction reverses for two of the three seeds. Meanwhile, the strong shift-to-shift variation shows that layer-score assignment can substantially alter the resulting allocation and validation loss.
+
+The defensible conclusion is that gradient-score alignment is consequential but this pilot has not established that the naturally observed alignment is the best or reliably beneficial alignment. The analysis remains descriptive: three parent-training seeds, one model/task and the RTE validation set. The 11 cyclic shifts are structured rotations, not random samples from all possible assignments and not a formal permutation test. Do not claim statistical significance or causality.
+
+The exact 33 seed-by-shift observations, rank-allocation comparisons, run count and reload flags should be inspected from results/v1_gradient_permutation/gradient_permutation_summary.json before finalizing the Phase 1 mechanism section.
