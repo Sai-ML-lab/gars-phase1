@@ -296,3 +296,6 @@ The student ran the expanded test suite after the pruning-export utilities were 
 The previous run's 28 passing tests remain valid; the failing assertion was a stale version expectation. Rerun Ruff and pytest after pulling the version synchronization commit. With the local editable install, run `python -m pip install -e .` once to refresh installed distribution metadata before experiments.
 
 **Workflow note from the student:** the M5 Max is the compute machine, but results/files cannot be transferred out and the student cannot git-push from that machine. Source-code changes will therefore be committed through the connected GitHub integration; the student only needs to pull on the M5 Max, run commands locally, and paste compact terminal/JSON outputs into chat. Keep large adapter/model binaries local and avoid requiring git push or file transfer.
+
+
+**Follow-up import-order cleanup:** the newly added public imports in `tests/test_imports.py` were placed in Ruff/isort order in a follow-up commit. The student should rerun the quality gates after pulling; expected suite size is 29 tests (28 previously passed plus the corrected package import test).
