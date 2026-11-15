@@ -31,7 +31,7 @@ from transformers import (
 )
 
 from gars.export import alpha_for_preserved_scaling, peft_module_pattern_key
-from gars.importance import transformer_layer_index
+from gars.importance import cyclically_shift_importance, transformer_layer_index
 from gars.policy import (
     AdapterSpectrum,
     BudgetCalibration,
@@ -542,6 +542,15 @@ def main() -> None:
     )
     parser.add_argument("--device", default="auto")
     parser.add_argument(
+        "--importance-cyclic-shift",
+        type=int,
+        default=0,
+        help=(
+            "Cyclically reassign observed layer-gradient scores before GARS "
+            "allocation; 0 preserves the observed layer-to-score assignment."
+        ),
+    )
+    parser.add_argument(
         "--methods",
         nargs="+",
         choices=["uniform_local_energy", "global_singular_value", "gars"],
@@ -568,12 +577,45 @@ def main() -> None:
     capture_steps = int(config["training"]["gradient_capture_last_optimizer_steps"])
     if int(gradient_data.get("capture_steps", -1)) != capture_steps:
         raise RuntimeError("Parent gradient capture count does not match the V1 config.")
-    importance = {
+    original_importance = {
         int(key): float(value)
         for key, value in gradient_data["importance_by_transformer_block"].items()
     }
-    if len(importance) != 12:
-        raise RuntimeError(f"Expected 12 block-importance scores, got {len(importance)}.")
+    if len(original_importance) != 12:
+        raise RuntimeError(
+            f"Expected 12 block-importance scores, got {len(original_importance)}."
+        )
+    layer_ids = sorted(original_importance)
+    if not 0 <= args.importance_cyclic_shift < len(layer_ids):
+        raise ValueError(
+            "--importance-cyclic-shift must be between zero and the number "
+            "of captured layers minus one."
+        )
+    importance = cyclically_shift_importance(
+        original_importance,
+        shift=args.importance_cyclic_shift,
+    )
+    source_layer_by_destination_layer = {
+        str(layer_id): str(
+            layer_ids[(index - args.importance_cyclic_shift) % len(layer_ids)]
+        )
+        for index, layer_id in enumerate(layer_ids)
+    }
+    importance_assignment = {
+        "kind": (
+            "observed_gradient_layer_alignment"
+            if args.importance_cyclic_shift == 0
+            else "cyclically_shifted_gradient_layer_alignment"
+        ),
+        "cyclic_shift": args.importance_cyclic_shift,
+        "source_layer_by_destination_layer": source_layer_by_destination_layer,
+        "original_importance_by_layer": {
+            str(key): value for key, value in original_importance.items()
+        },
+        "assigned_importance_by_layer": {
+            str(key): value for key, value in importance.items()
+        },
+    }
 
     parent_revision = metadata.get("base_model_revision")
     config_revision = config["model"].get("revision", "main")
@@ -741,6 +783,7 @@ def main() -> None:
             key: float(validation[key]) - float(parent_validation[key])
             for key in ("accuracy", "macro_f1", "loss")
         }
+        report["importance_assignment"] = importance_assignment
         report["validation"] = validation
         report["parent_validation"] = parent_validation
         report["validation_delta_vs_parent"] = differences
@@ -753,6 +796,7 @@ def main() -> None:
             encoding="utf-8",
         )
         summaries[method] = {
+            "importance_cyclic_shift": args.importance_cyclic_shift,
             "achieved_parameters": report["achieved_parameters"],
             "parameter_reduction_fraction": report["parameter_reduction_fraction"],
             "adapter_weight_file_bytes": report["pruned_lora_weight_file_bytes"],
@@ -782,6 +826,7 @@ def main() -> None:
         "parent_lora_A_B_parameters": parent_factor_parameters,
         "target_parameters": target_parameters,
         "parent_validation": metadata["final_validation"],
+        "importance_assignment": importance_assignment,
         "policies": summaries,
         "note": (
             "Post-hoc SVD truncation of the same parent adapter. Physical ranks "
