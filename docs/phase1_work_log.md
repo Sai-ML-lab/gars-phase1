@@ -535,3 +535,22 @@ The mechanism-analysis runner now prints per-seed depth trends, partial correlat
 
 
 **Beta-zero equivalence safeguard:** The GARS budget calibrator now special-cases `beta=0` by delegating threshold selection to the uniform-local-energy calibrator and returning identical module ranks with a layer-constant threshold map. This removes any possible discrepancy from two separate discrete-threshold search paths and makes the beta-zero ablation exactly equivalent by construction. A unit test verifies rank equality and common thresholds. The beta-sweep runner also checks beta 0.50 against the frozen V1 GARS module ranks.
+
+
+## 15 November 2026 — GARS beta sensitivity sweep completed
+
+The student reports successful completion of `scripts/run_gars_beta_sweep.py --device mps` across beta values 0.00, 0.25, 0.50, 0.75 and 1.00, using seeds 42, 123 and 999. The script did not trigger its beta-zero uniform-rank equivalence guard or beta-0.50 V1-rank reproduction guard, so both allocation equivalence checks passed. It produced `results/v1_beta_sweep/beta_sweep_summary.json`.
+
+Console-reported three-seed averages (rounded to five decimal places):
+
+| Beta | Accuracy | Macro-F1 | Loss | Cross-seed module rank stability |
+|---:|---:|---:|---:|---:|
+| 0.00 | 0.83153 | 0.82935 | 0.44844 | 0.93196 |
+| 0.25 | 0.83153 | 0.82954 | 0.44539 | 0.86575 |
+| 0.50 | 0.83153 | 0.82954 | 0.44544 | 0.82881 |
+| 0.75 | 0.83153 | 0.82954 | 0.44543 | 0.78547 |
+| 1.00 | 0.83153 | 0.82954 | 0.44536 | 0.75842 |
+
+**Interpretation:** rank-allocation stability falls monotonically over the tested beta grid, while aggregate validation accuracy/macro-F1/loss change little for nonzero beta. Beta=0.25 gives the lowest rounded mean loss, but its difference from beta=0.5 is only ~0.00005, and from beta=1.0 ~0.00003; these are not evidence for selecting an optimal beta. The current V1 beta=0.5 remains frozen. The result suggests beta changes allocation patterns more than aggregate RTE metrics.
+
+The console values are rounded. Exact per-seed changes, threshold clipping, and rank shifts must be extracted from the saved JSON before drawing final claims. No validation-driven beta selection should be claimed; this remains a sensitivity experiment, not a held-out evaluation.
