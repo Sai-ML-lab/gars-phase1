@@ -52,6 +52,36 @@ def collect_lora_layer_gradient_norms(
     }
 
 
+def cyclically_shift_importance(
+    importance_by_layer: dict[int, float],
+    shift: int,
+) -> dict[int, float]:
+    """Reassign layer scores by a deterministic cyclic shift.
+
+    For sorted layer IDs L, destination L[i] receives the original score from
+    L[(i - shift) % len(L)]. A non-zero shift preserves the exact score
+    multiset while changing its alignment with layer-specific spectra.
+    """
+    if not importance_by_layer:
+        raise ValueError("importance_by_layer must not be empty.")
+    if isinstance(shift, bool) or not isinstance(shift, int):
+        raise TypeError("shift must be an integer.")
+    layer_ids = sorted(int(layer_id) for layer_id in importance_by_layer)
+    if len(layer_ids) != len(importance_by_layer):
+        raise ValueError("Layer IDs must be unique after integer conversion.")
+    if not 0 <= shift < len(layer_ids):
+        raise ValueError(f"shift must be in [0, {len(layer_ids) - 1}].")
+
+    original = {int(layer_id): float(value) for layer_id, value in importance_by_layer.items()}
+    if any(not math.isfinite(value) or value < 0.0 for value in original.values()):
+        raise ValueError("Importance values must be finite and non-negative.")
+
+    return {
+        destination: original[layer_ids[(index - shift) % len(layer_ids)]]
+        for index, destination in enumerate(layer_ids)
+    }
+
+
 class GradientImportanceAccumulator:
     """Accumulate per-step layer gradient norms over a fixed measurement window.
 
