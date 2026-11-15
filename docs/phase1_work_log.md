@@ -214,3 +214,19 @@ The student ran `scripts/validate_parent_adapter.py` on MPS. All checks passed:
 **Conclusion:** seed 42's parent adapter serialization, tensor inventory and reload equivalence are validated. This remains a single-seed, single-task parent baseline; no compression result or GARS advantage is claimed.
 
 **Next action:** run parent training for seeds 123 and 999 with the identical V1 config and FP32 runner, then run the same adapter reload validator for each seed. Do not start pruning comparisons until both additional seeds have passed their own reload checks.
+
+
+## 15 November 2026 — seed 123 parent-adapter reload validation passed
+
+The student supplied the completed validation output for seed 123:
+- Reload validation passed on MPS with FP32 base and PEFT model parameters.
+- Saved adapter contains 52 tensors: 24 LoRA modules, 2 classifier tensors and 2 pooler tensors.
+- Every adapted projection is rank 32; 12 Transformer blocks × 2 target projections = 24 LoRA modules.
+- Saved LoRA A/B factor count is 1,179,648, matching seed-123 run metadata.
+- Adapter weights file size is 7,094,672 bytes; adapter tensors are FP32.
+- Original and reloaded validation results on 277 examples match exactly: accuracy 0.8447653429602888, macro-F1 0.8435911914172783, loss 0.43382309483630316. Absolute differences for all metrics are 0.0.
+- The validator wrote `results/v1_parent_rte/seed_123/reload_validation.json`.
+
+**Conclusion:** seed 123's parent adapter save/load pipeline is validated. Along with seed 42, two of the three parent seeds have passed. These are unpruned parent results only; no compression benefit is measured yet.
+
+**Next action:** complete seed 999 with the identical V1 configuration and FP32 settings, then validate its adapter with the same reload utility. Before aggregating across seeds or making a strong reproducibility claim, inspect the recorded model snapshot/revision information because the current reload reports show revision `main` rather than an immutable model commit hash.
