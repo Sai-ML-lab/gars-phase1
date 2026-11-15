@@ -1,5 +1,6 @@
 """Reusable components for the GARS research project."""
 
+from .export import alpha_for_preserved_scaling, peft_module_pattern_key
 from .importance import GradientImportanceAccumulator, collect_lora_layer_gradient_norms
 from .policy import (
     AdapterSpectrum,
@@ -26,12 +27,14 @@ __all__ = [
     "BudgetCalibration",
     "GradientImportanceAccumulator",
     "TruncatedFactors",
+    "alpha_for_preserved_scaling",
     "calibrate_gars_budget",
     "calibrate_global_singular_value_budget",
     "calibrate_uniform_energy_budget",
     "collect_lora_layer_gradient_norms",
     "gars_thresholds",
     "normalized_squared_spectral_entropy",
+    "peft_module_pattern_key",
     "physical_adapter_parameter_count",
     "qr_svd_lora_update",
     "rank_for_squared_energy",
