@@ -121,3 +121,27 @@ It does **not** yet establish that gradient magnitude is the causal reason for a
 ### Remaining mechanism limitation
 
 The current parent runs store only the arithmetic mean of each layer's gradient norm over the final 50 optimizer updates. They do not store the 50 individual step-level values. Within-window gradient variance, autocorrelation, and ranking stability over training time cannot be estimated from these artifacts. A future instrumented run must persist each update's per-layer score before those temporal questions can be answered.
+
+
+## Gradient-conditioning strength sensitivity (beta sweep)
+
+The post-hoc beta sweep reused the same three parent adapters and recalibrated each GARS allocation to the same 708,096 physical LoRA A/B factor parameters. The console-reported three-seed means are:
+
+| Beta | Accuracy | Macro-F1 | Validation loss | Cross-seed module-rank stability (mean pairwise rho) |
+|---:|---:|---:|---:|---:|
+| 0.00 (uniform-equivalent) | 0.83153 | 0.82935 | 0.44844 | 0.93196 |
+| 0.25 | 0.83153 | 0.82954 | 0.44539 | 0.86575 |
+| 0.50 (V1) | 0.83153 | 0.82954 | 0.44544 | 0.82881 |
+| 0.75 | 0.83153 | 0.82954 | 0.44543 | 0.78547 |
+| 1.00 | 0.83153 | 0.82954 | 0.44536 | 0.75842 |
+
+The sweep completed without triggering its two rank-equivalence guards: beta=0 reproduced the existing uniform-local-energy per-module ranks, and beta=0.5 reproduced the original V1 GARS ranks. Each beta was calibrated to the same A/B factor parameter budget and the exporter checked reload validation.
+
+### Interpretation
+
+- Cross-seed rank-allocation stability declines monotonically as beta increases in this tested grid (mean pairwise module-rank Spearman rho 0.932 at beta=0, falling to 0.758 at beta=1). Greater gradient-conditioning strength makes the discrete allocation more seed-dependent in this pilot.
+- Aggregate accuracy is unchanged at the displayed five-decimal precision across all beta values. Macro-F1 is slightly lower for beta=0 and unchanged at displayed precision for beta 0.25–1.00.
+- Mean validation loss is similar across nonzero beta values. Beta=0.25 has the lowest displayed loss (0.44539), but the difference from beta=0.50 is only about 0.00005 and from beta=1.00 about 0.00003. These small validation differences do not establish an optimal beta.
+- The evidence suggests that beta affects where ranks are allocated more visibly than it affects aggregate validation performance on RTE.
+
+The console output is rounded to five decimal places. Use the saved `results/v1_beta_sweep/beta_sweep_summary.json` for exact per-seed, paired comparisons and threshold clipping counts before writing final quantitative claims. The V1 beta remains 0.5; this sensitivity sweep alone is not sufficient grounds to select a new beta. The validation split is not an independent test set and must not be used to select beta and then presented as unbiased evaluation.
