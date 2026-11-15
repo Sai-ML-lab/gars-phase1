@@ -2,7 +2,7 @@
   "experiment_id": "gars_v1_deberta_v3_base_rte",
   "model": {
     "id": "microsoft/deberta-v3-base",
-    "revision": "main",
+    "revision": "8ccc9b6f36199bec6961081d44eb72fb3f7353f3",
     "num_labels": 2
   },
   "dataset": {
