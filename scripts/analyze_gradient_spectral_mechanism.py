@@ -420,6 +420,87 @@ def analyze(
     }
 
 
+def _format_value(value: float | None) -> str:
+    return "NA" if value is None else f"{value:.3f}"
+
+
+def _format_mean_std(item: dict[str, float | None]) -> str:
+    return (
+        f"{_format_value(item['mean'])}±"
+        f"{_format_value(item['sample_std'])}"
+    )
+
+
+def _print_summary(report: dict[str, Any]) -> None:
+    print("\\nGRADIENT SIGNAL RELIABILITY")
+    pairwise = report["gradient_signal_reliability"][
+        "pairwise_normalized_importance_correlations"
+    ]
+    for pair, item in pairwise.items():
+        correlation = item["correlation"]
+        agreement = item["agreement"]
+        print(
+            f"{pair}: Spearman={_format_value(correlation['spearman_rho'])}, "
+            f"Kendall={_format_value(correlation['kendall_tau_b'])}, "
+            f"rank-order MAE={_format_value(agreement['mean_absolute_rank_difference'])}"
+        )
+
+    print("\\nGRADIENT IMPORTANCE VS. SPECTRAL ENTROPY (12 BLOCKS PER SEED)")
+    for seed, item in report["spectral_concentration"][
+        "gradient_importance_vs_layer_mean_entropy_by_seed"
+    ].items():
+        print(
+            f"seed {seed}: Spearman={_format_value(item['spearman_rho'])}, "
+            f"Pearson={_format_value(item['pearson_r'])}, "
+            f"Kendall={_format_value(item['kendall_tau_b'])}"
+        )
+
+    print("\\nCROSS-SEED RANK-ALLOCATION STABILITY")
+    for method, method_data in report["rank_allocation_stability"][
+        "pairwise_stability"
+    ].items():
+        print(method)
+        for pair, item in method_data["pairwise_module_rank_stability"].items():
+            agreement = item["agreement"]
+            print(
+                f"  {pair} modules: Spearman="
+                f"{_format_value(item['correlation']['spearman_rho'])}, "
+                f"exact-rank-match={_format_value(agreement['exact_rank_match_fraction'])}, "
+                f"mean-|delta-rank|="
+                f"{_format_value(agreement['mean_absolute_rank_difference'])}"
+            )
+
+    gradient_stats = report["gradient_signal_reliability"]["per_layer_across_seed"]
+    normalized = gradient_stats["normalized_importance_mean_and_sample_std"]
+    gradient_ranks = gradient_stats["importance_rank_mean_and_sample_std"]
+    entropy = report["spectral_concentration"][
+        "per_layer_entropy_mean_and_sample_std_across_seeds"
+    ]
+    ranks = report["rank_allocation_stability"][
+        "per_layer_mean_retained_rank_across_seeds"
+    ]
+    print("\\nPER-BLOCK SUMMARY (MEAN±SAMPLE SD ACROSS SEEDS)")
+    print("block | norm-gradient | gradient-rank | H_sq | GARS-rank | global-rank | uniform-rank")
+    for layer in range(len(EXPECTED_LAYERS)):
+        key = str(layer)
+        values = [
+            _format_mean_std(normalized[key]),
+            _format_mean_std(gradient_ranks[key]),
+            _format_mean_std(entropy[key]),
+            _format_mean_std(ranks["gars"][key]),
+            _format_mean_std(ranks["global_singular_value"][key]),
+            _format_mean_std(ranks["uniform_local_energy"][key]),
+        ]
+        print(f"{layer:>5} | " + " | ".join(values))
+
+    print("\\nGARS THRESHOLD CLIPPING")
+    for seed, item in report["seed_level"].items():
+        print(
+            f"seed {seed}: at lower bound={item['gars_thresholds_at_lower_bound']}, "
+            f"at upper bound={item['gars_thresholds_at_upper_bound']}"
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -450,8 +531,8 @@ def main() -> None:
     rendered = json.dumps(report, indent=2, sort_keys=True)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(rendered + "\n", encoding="utf-8")
-    print(f"Saved mechanism analysis: {args.output}")
-    print(rendered)
+    print(f"Saved detailed mechanism analysis: {args.output}")
+    _print_summary(report)
 
 
 if __name__ == "__main__":
