@@ -179,3 +179,15 @@ The student supplied the completed seed-42 training summary. This is the first v
 - Detailed run revision, package versions, dataset fingerprints, and saved tensor shapes still need to be inspected from `run_metadata.json` and `adapter_model.safetensors`.
 
 **Next gate:** validate the saved tensor inventory, confirm the stored LoRA A/B factor count and rank-32 module layout, reload the PEFT adapter onto a fresh FP32 DeBERTa sequence-classification base, and reproduce the stored validation metrics. Do not start seeds 123 and 999 until this check passes.
+
+
+**Adapter-verification utility added:** `scripts/validate_parent_adapter.py` now:
+- inventories saved safetensors tensors and checks paired LoRA A/B matrices;
+- checks every parent LoRA module has rank 32 and the expected module count (12 blocks × 2 projections = 24);
+- verifies saved A/B parameter count against run metadata;
+- checks that classifier and pooler `modules_to_save` tensors are present;
+- reloads the adapter onto a fresh FP32 sequence-classification base and reruns the GLUE RTE validation split;
+- compares accuracy and macro-F1 exactly and validation loss within a configurable tolerance;
+- writes `reload_validation.json` only when all checks pass.
+
+This utility has been committed but has not yet been run on the user's machine. Its output is the next gate before starting seeds 123 and 999.
