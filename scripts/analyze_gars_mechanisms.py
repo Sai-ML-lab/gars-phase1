@@ -65,6 +65,32 @@ def _profile_stats(
     }
 
 
+def _relative_importance_by_layer(
+    seeds: list[int],
+    artifacts: dict[int, dict[str, Any]],
+) -> dict[str, Any]:
+    output: dict[str, Any] = {}
+    layers = sorted(artifacts[seeds[0]]["normalized_gradient_by_layer"], key=int)
+    for layer in layers:
+        by_seed = {
+            str(seed): float(artifacts[seed]["normalized_gradient_by_layer"][layer])
+            for seed in seeds
+        }
+        stats = descriptive_stats(list(by_seed.values()))
+        mean = stats["mean"]
+        sample_std = stats["sample_std"]
+        output[layer] = {
+            "normalized_importance_by_seed": by_seed,
+            **stats,
+            "coefficient_of_variation": (
+                sample_std / mean
+                if sample_std is not None and mean not in (None, 0.0)
+                else None
+            ),
+        }
+    return output
+
+
 def _load_seed_artifacts(
     seed: int,
     parent_root: Path,
@@ -446,48 +472,9 @@ def build_mechanism_report(
         },
         "cross_seed_gradient_rank_reliability": {
             "raw_gradient_magnitude_profiles": _profile_stats(gradient_rank_corr),
-            "relative_importance_by_layer": {
-                layer: {
-                    "normalized_importance_by_seed": {
-                        str(seed): artifacts[seed]["normalized_gradient_by_layer"][layer]
-                        for seed in seeds
-                    },
-                    **descriptive_stats(
-                        [
-                            artifacts[seed]["normalized_gradient_by_layer"][layer]
-                            for seed in seeds
-                        ]
-                    ),
-                    "coefficient_of_variation": (
-                        descriptive_stats(
-                            [
-                                artifacts[seed]["normalized_gradient_by_layer"][layer]
-                                for seed in seeds
-                            ]
-                        )["sample_std"]
-                        / descriptive_stats(
-                            [
-                                artifacts[seed]["normalized_gradient_by_layer"][layer]
-                                for seed in seeds
-                            ]
-                        )["mean"]
-                        if descriptive_stats(
-                            [
-                                artifacts[seed]["normalized_gradient_by_layer"][layer]
-                                for seed in seeds
-                            ]
-                        )["sample_std"] is not None
-                        and descriptive_stats(
-                            [
-                                artifacts[seed]["normalized_gradient_by_layer"][layer]
-                                for seed in seeds
-                            ]
-                        )["mean"] != 0
-                        else None
-                    ),
-                }
-                for layer in sorted(artifacts[seeds[0]]["normalized_gradient_by_layer"], key=int)
-            },
+            "relative_importance_by_layer": _relative_importance_by_layer(
+                seeds, artifacts
+            ),
         },
         "cross_seed_spectral_profile_stability": {
             "per_module_entropy_profiles": _profile_stats(entropy_module_corr),
