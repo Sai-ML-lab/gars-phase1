@@ -46,7 +46,6 @@ def _make_seed_artifacts(root: Path, seed: int) -> tuple[Path, Path]:
         },
     )
 
-    entropy: dict[str, float] = {}
     for method in METHODS:
         modules = {}
         for layer in range(12):
@@ -56,7 +55,6 @@ def _make_seed_artifacts(root: Path, seed: int) -> tuple[Path, Path]:
                     f"{layer}.attention.self.{projection}"
                 )
                 value = 0.2 + layer * 0.01 + projection_index * 0.005
-                entropy[name] = value
                 modules[name] = {
                     "layer_id": layer,
                     "retained_rank": 20 + projection_index,
