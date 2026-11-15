@@ -64,12 +64,15 @@ def _load_validation(
     validation_raw = raw[dataset_cfg.get("validation_split", "validation")]
 
     def tokenize_batch(batch: dict[str, list[Any]]) -> dict[str, Any]:
-        return tokenizer(
+        encoded = tokenizer(
             batch["sentence1"],
             batch["sentence2"],
             truncation=True,
             max_length=int(dataset_cfg.get("max_length", 256)),
         )
+        # Match the training runner: the collator converts "label" to "labels".
+        encoded["label"] = batch["label"]
+        return encoded
 
     validation = validation_raw.map(
         tokenize_batch,
