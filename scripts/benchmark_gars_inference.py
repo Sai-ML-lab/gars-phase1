@@ -297,6 +297,7 @@ def _run_variant(
             warmup_steps,
             timed_steps,
         )
+    memory_after_unmerged = _memory_snapshot(device)
 
     # Check merged/unmerged numerical equivalence on the same fixed batch.
     equivalence_batch = batches_by_size[batch_sizes[0]][0]
@@ -328,7 +329,7 @@ def _run_variant(
         )
 
     _synchronize(device)
-    memory_after_benchmark = _memory_snapshot(device)
+    memory_after_merged = _memory_snapshot(device)
     result = {
         "seed": seed,
         "variant": variant,
@@ -344,7 +345,8 @@ def _run_variant(
             "tolerance": merge_tolerance,
         },
         "memory_after_model_load": memory_after_load,
-        "memory_after_benchmark": memory_after_benchmark,
+        "memory_after_unmerged_benchmark": memory_after_unmerged,
+        "memory_after_merged_benchmark": memory_after_merged,
         "unmerged": unmerged_results,
         "merged": merged_results,
     }
