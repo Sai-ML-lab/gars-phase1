@@ -309,3 +309,15 @@ The student reports `python -m pytest -q` now passes all 29 tests after synchron
 1. Confirm Ruff is clean on the new `scripts/run_pruning_comparison.py`, `scripts/validate_parent_adapter.py`, package source and tests.
 2. Obtain the resolved local Hugging Face snapshot SHA for `microsoft/deberta-v3-base`, and compare against the parent run metadata/cache. The historical parent runs record a floating `main` revision, so the actual snapshot SHA must not be retroactively claimed without evidence.
 3. After the revision provenance decision, run the pruning comparison for seed 42 only. The script refuses floating revisions unless explicitly overridden, and the override should be used only after verifying the local snapshot was the one used by all parent runs.
+
+
+## 15 November 2026 — recovered current Hub snapshot; pruning provenance guard triggered
+
+The student resolved the currently cached `microsoft/deberta-v3-base` `main` ref to snapshot SHA `8ccc9b6f36199bec6961081d44eb72fb3f7353f3`. All three historical parent run metadata files report `base_model_revision = null`, so they do not prove which immutable Hub commit was used when each model was trained.
+
+The first seed-42 pruning attempt correctly stopped before exporting anything because the config and historical metadata still resolve to floating `main`. Do not use `--allow-floating-revision` merely to bypass this guard. First inspect the local Hugging Face cache:
+- contents of `models--microsoft--deberta-v3-base/refs/main`;
+- every directory under `models--microsoft--deberta-v3-base/snapshots/`;
+- whether the current SHA is the only cached snapshot and whether its model weights/config timestamps predate the three parent runs.
+
+If the cache contains only the resolved SHA and that SHA is the one fetched during the parent-training session (the user observed a 371 MB model download during seed 42 and the later seeds ran in the same work session), this provides strong local-cache evidence but not a cryptographic per-run attestation. Pin the config to that SHA for all fresh pruning base-model loads, while retaining the historical provenance caveat in the report. If multiple snapshots exist or provenance is ambiguous, do not proceed with the existing parent models as a strict matched-base experiment; retrain all parent seeds under the pinned revision or explicitly label the limitation.
