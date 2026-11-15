@@ -71,3 +71,36 @@ def pairwise_profile_correlations(
             }
         )
     return output
+
+
+def partial_spearman_rank_correlation(
+    left: Sequence[float],
+    right: Sequence[float],
+    control: Sequence[float],
+) -> float | None:
+    """Correlate ranked variables after linearly residualizing ranked control.
+
+    This is a descriptive partial Spearman correlation. It is useful here for
+    checking whether layer-wise associations persist after adjusting for the
+    monotonic ordering of Transformer depth. It is not a causal estimate.
+    """
+    x = np.asarray(left, dtype=np.float64).reshape(-1)
+    y = np.asarray(right, dtype=np.float64).reshape(-1)
+    z = np.asarray(control, dtype=np.float64).reshape(-1)
+    if x.size != y.size or x.size != z.size:
+        raise ValueError("Partial Spearman inputs must have equal lengths.")
+    if x.size < 3:
+        return None
+    if not np.isfinite(x).all() or not np.isfinite(y).all() or not np.isfinite(z).all():
+        raise ValueError("Partial Spearman inputs must contain only finite values.")
+
+    rank_x = rankdata(x, method="average")
+    rank_y = rankdata(y, method="average")
+    rank_z = rankdata(z, method="average")
+    design = np.column_stack((np.ones(rank_z.size), rank_z))
+    residual_x = rank_x - design @ np.linalg.lstsq(design, rank_x, rcond=None)[0]
+    residual_y = rank_y - design @ np.linalg.lstsq(design, rank_y, rcond=None)[0]
+    if np.ptp(residual_x) <= 1e-12 or np.ptp(residual_y) <= 1e-12:
+        return None
+    value = float(np.corrcoef(residual_x, residual_y)[0, 1])
+    return value if math.isfinite(value) else None
