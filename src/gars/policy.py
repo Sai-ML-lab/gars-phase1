@@ -208,7 +208,7 @@ def calibrate_gars_budget(
         ranks, budget = _budget_for_thresholds(spectra, thresholds, min_rank)
         return thresholds, ranks, budget
 
-    low = 0.0
+    low = 1e-12
     high = 1.0
     low_eval = evaluate(low)
     high_eval = evaluate(high)
@@ -334,7 +334,7 @@ def calibrate_global_singular_value_budget(
         raise ValueError("target_parameters must be positive.")
 
     all_values = torch.cat(
-        [torch.as_tensor(spec.singular_values, dtype=torch.float64).flatten()
+        [torch.as_tensor(spec.singular_values, dtype=torch.float64, device="cpu").flatten()
          for spec in spectra]
     )
     unique = torch.unique(all_values, sorted=True)
@@ -350,7 +350,7 @@ def calibrate_global_singular_value_budget(
     def evaluate(cutoff: float) -> tuple[dict[str, int], int]:
         ranks: dict[str, int] = {}
         for spec in spectra:
-            kept = int(torch.sum(torch.as_tensor(spec.singular_values) >= cutoff).item())
+            kept = int(torch.sum(torch.as_tensor(spec.singular_values, device="cpu") >= cutoff).item())
             ranks[spec.module_name] = min(max(kept, min_rank), spec.max_rank)
         return ranks, physical_adapter_parameter_count(spectra, ranks)
 
