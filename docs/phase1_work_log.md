@@ -230,3 +230,34 @@ The student supplied the completed validation output for seed 123:
 **Conclusion:** seed 123's parent adapter save/load pipeline is validated. Along with seed 42, two of the three parent seeds have passed. These are unpruned parent results only; no compression benefit is measured yet.
 
 **Next action:** complete seed 999 with the identical V1 configuration and FP32 settings, then validate its adapter with the same reload utility. Before aggregating across seeds or making a strong reproducibility claim, inspect the recorded model snapshot/revision information because the current reload reports show revision `main` rather than an immutable model commit hash.
+
+
+## 15 November 2026 — seed 999 adapter reload validation passed; parent baseline complete
+
+The student supplied the seed-999 adapter reload report. All checks passed:
+- Reload validation passed on MPS with FP32 base and PEFT model parameters.
+- Saved adapter contains 52 tensors: 24 LoRA module pairs, 2 classifier tensors and 2 pooler tensors.
+- All 24 target projections have rank 32 across 12 DeBERTa blocks.
+- Saved A/B factor count is 1,179,648; adapter weights file is 7,094,672 bytes; saved tensors are FP32.
+- Original and reloaded metrics on 277 GLUE RTE validation examples match exactly: accuracy 0.8303249097472925, macro-F1 0.8288167462164544, loss 0.4475828063275133. Absolute differences are 0.0.
+- The validator wrote `results/v1_parent_rte/seed_999/reload_validation.json`.
+
+### Three-seed parent baseline (descriptive summary)
+
+Using the three supplied seed-level validation results, the arithmetic mean and sample standard deviation (n=3, denominator n-1) are:
+- Accuracy: mean 0.8315283; sample SD 0.0126783 (83.15% ± 1.27 percentage points).
+- Macro-F1: mean 0.8295411; sample SD 0.0137022 (82.95% ± 1.37 percentage points).
+- Validation loss: mean 0.4444372; sample SD 0.0094428.
+
+Individual results:
+- Seed 42: accuracy 0.8194946, macro-F1 0.8162155, loss 0.4519057.
+- Seed 123: accuracy 0.8447653, macro-F1 0.8435912, loss 0.4338231.
+- Seed 999: accuracy 0.8303249, macro-F1 0.8288167, loss 0.4475828.
+
+Interpret only as a three-seed pilot parent baseline on one model/task; n=3 is too small for strong inferential/significance claims.
+
+### Model revision reproducibility caveat
+
+All three reload reports display base-model revision `main`. The original training metadata did not record an immutable Hub commit SHA (`base_model_revision` was absent/null and the validator fell back to the config's `main`). The three training runs were performed in the same work session against the same model ID, but exact byte-identical pretrained snapshot provenance has not been independently established. Before treating this as fully pinned/reproducible, record the local Hugging Face cache `refs/main` commit SHA and compare the three run timestamps/cache provenance if available. Do not silently rewrite historical metadata to claim a SHA that was not captured at training time.
+
+**Next stage:** construct and validate the post-hoc matched-physical-budget export pipeline. For each seed, compare parent, uniform local squared-energy, global singular-value cutoff and GARS. PEFT's `rank_pattern` and `alpha_pattern` can express per-module rank and alpha; when physically changing rank, `alpha_pattern` must be set to preserve the original external LoRA scale (`alpha/r` for standard LoRA, `alpha/sqrt(r)` for rank-stabilized LoRA). This must be verified by reloading the exported adapter and checking module ranks/scaling before interpreting validation metrics.
