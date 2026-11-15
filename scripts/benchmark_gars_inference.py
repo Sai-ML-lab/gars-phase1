@@ -207,8 +207,8 @@ def _measure_mode(
         start_total = time.perf_counter()
         for index in range(timed_steps):
             batch = batches[index % len(batches)]
-            model_inputs = _to_device(batch, device)
             start = time.perf_counter()
+            model_inputs = _to_device(batch, device)
             output = model(**model_inputs)
             _synchronize(device)
             elapsed = time.perf_counter() - start
