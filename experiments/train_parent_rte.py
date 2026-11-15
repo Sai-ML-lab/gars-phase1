@@ -18,6 +18,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import transformers
 from datasets import load_dataset
 from peft import LoraConfig, TaskType, get_peft_model
 from sklearn.metrics import accuracy_score, f1_score
@@ -35,6 +36,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from gars.importance import GradientImportanceAccumulator
+
+
+def _model_load_dtype_kwargs() -> dict[str, torch.dtype]:
+    """Select the explicit FP32 loading argument for Transformers v4 or v5."""
+    major_version = int(transformers.__version__.split(".", maxsplit=1)[0])
+    if major_version >= 5:
+        return {"dtype": torch.float32}
+    return {"torch_dtype": torch.float32}
 
 
 def _package_version(package: str) -> str | None:
@@ -201,7 +210,13 @@ def train_seed(
         model_cfg["id"],
         revision=model_cfg.get("revision", "main"),
         num_labels=int(model_cfg.get("num_labels", 2)),
+        **_model_load_dtype_kwargs(),
     )
+    loaded_dtypes = {parameter.dtype for parameter in base_model.parameters()}
+    if loaded_dtypes != {torch.float32}:
+        raise RuntimeError(
+            f"Expected all base-model parameters to be float32 before training, got {loaded_dtypes}."
+        )
     base_model.config.problem_type = "single_label_classification"
 
     target_modules = list(lora_cfg["target_modules"])
@@ -229,6 +244,11 @@ def train_seed(
     )
     model = get_peft_model(base_model, peft_config)
     model.to(device)
+    peft_dtypes = {parameter.dtype for parameter in model.parameters()}
+    if peft_dtypes != {torch.float32}:
+        raise RuntimeError(
+            f"Expected all PEFT model parameters to be float32 before training, got {peft_dtypes}."
+        )
 
     trainable_parameters = [
         parameter for parameter in model.parameters() if parameter.requires_grad
@@ -243,6 +263,7 @@ def train_seed(
         trainable_parameters,
         lr=float(training_cfg["learning_rate"]),
         weight_decay=float(training_cfg["weight_decay"]),
+        eps=float(training_cfg.get("adam_epsilon", 1e-8)),
     )
 
     epochs = int(training_cfg["epochs"])
@@ -325,6 +346,17 @@ def train_seed(
                 error_if_nonfinite=True,
             )
             optimizer.step()
+            non_finite_parameters = [
+                name for name, parameter in model.named_parameters()
+                if parameter.requires_grad
+                and not bool(torch.isfinite(parameter).all().item())
+            ]
+            if non_finite_parameters:
+                raise RuntimeError(
+                    "Non-finite trainable parameters immediately after optimizer update: "
+                    f"seed={seed}, epoch={epoch + 1}, optimizer_step={global_step}, "
+                    f"parameters={non_finite_parameters[:10]}"
+                )
             scheduler.step()
             optimizer.zero_grad(set_to_none=True)
 
@@ -398,6 +430,8 @@ def train_seed(
         "train_dataset_fingerprint": getattr(train_dataset, "_fingerprint", None),
         "validation_dataset_fingerprint": getattr(validation_dataset, "_fingerprint", None),
         "device": str(device),
+        "model_parameter_dtype": "float32",
+        "adamw_epsilon": float(training_cfg.get("adam_epsilon", 1e-8)),
         "python_version": platform.python_version(),
         "packages": {
             name: _package_version(name)
