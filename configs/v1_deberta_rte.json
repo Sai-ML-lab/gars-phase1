@@ -19,6 +19,7 @@
     "gradient_accumulation_steps": 2,
     "learning_rate": 0.0002,
     "weight_decay": 0.01,
+    "adam_epsilon": 1e-8,
     "warmup_ratio": 0.1,
     "max_grad_norm": 1.0,
     "gradient_capture_last_optimizer_steps": 50
