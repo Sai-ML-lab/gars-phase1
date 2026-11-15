@@ -158,13 +158,16 @@ def _read_seed_artifacts(
         method: _layer_means_by_module(policies[method]["modules"], "retained_rank")
         for method in METHODS
     }
+    mean_importance = _mean(list(importance.values()))
+    normalized_importance = (
+        {layer: score / mean_importance for layer, score in importance.items()}
+        if mean_importance > 0.0
+        else {layer: 1.0 for layer in importance}
+    )
     return {
         "seed": seed,
         "gradient_importance": importance,
-        "normalized_gradient_importance": {
-            layer: score / _mean(list(importance.values()))
-            for layer, score in importance.items()
-        },
+        "normalized_gradient_importance": normalized_importance,
         "gradient_rank": {
             layer: rank
             for layer, rank in zip(
