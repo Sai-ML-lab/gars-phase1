@@ -44,8 +44,8 @@ def test_physical_parameter_count_uses_actual_module_dimensions() -> None:
         "layer0.v_proj": 1,
         "layer1.q_proj": 3,
     }
-    # 2*(4+4) + 1*(4+4) + 3*(4+6)
-    assert physical_adapter_parameter_count(spectra, ranks) == 46
+    # 2*(4+4) + 1*(4+4) + 3*(4+6) = 16 + 8 + 30 = 54
+    assert physical_adapter_parameter_count(spectra, ranks) == 54
 
 
 @pytest.mark.parametrize(
