@@ -471,7 +471,7 @@ The script reads the 12 block-level scores from each parent's `gradient_importan
 
 The analysis intentionally reports correlations without p-values. The gradient-to-GARS-rank relation is explicitly marked as policy-coupled rather than independent evidence. Added the method and statistical limitations to `docs/experiment_protocol_v1.md`.
 
-**Next gate:** pull main; run full Ruff and pytest; fix any local quality-gate findings before running the mechanism analysis. The expected test count increases by six. Then run the analysis on the existing three seeds and share the output for scientific interpretation. No new experimental finding is claimed until that local script has executed successfully.
+**Next gate:** pull main; run full Ruff and pytest; fix any local quality-gate findings before running the mechanism analysis. Seven new tests cover the statistical helpers and a synthetic end-to-end analysis path. Then run the analysis on the existing three seeds and share the output for scientific interpretation. No new experimental finding is claimed until that local script has executed successfully.
 
 
 ## 15 November 2026 — mechanism-analysis tooling added
