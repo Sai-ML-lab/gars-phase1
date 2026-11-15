@@ -627,3 +627,34 @@ The process then raised a TypeError while printing the aggregate summary. This s
 **Fix committed:** scripts/run_gars_gradient_permutation.py now formats a missing sample standard deviation explicitly as n/a (one seed). Added tests/test_gradient_permutation_runner.py to cover both one-seed and multi-seed formatting. The existing smoke outputs need not be overwritten or recomputed.
 
 **Next action:** pull the formatter/test fix, run full-tree Ruff and pytest, verify the existing smoke JSON reports one completed run and all_requested_runs_completed = true, then launch the default 33-export cyclic alignment experiment to a separate output directory results/v1_gradient_permutation.
+
+
+## 15 November 2026 — cyclic gradient alignment sweep results reviewed
+
+The student supplied the terminal summary from the full cyclic-alignment runner. All 11 shifts (1–11) produced aggregate loss summaries, and per-seed cyclic means/ranges were printed. Since the orchestrator only writes the final aggregate after completing every requested seed/shift export and validating each result, the printed final summary is evidence that the requested sweep reached aggregation.
+
+**Mean validation loss by shift (rounded console values):**
+- Shift 1: 0.445255; paired loss change vs observed GARS -0.000185.
+- Shift 2: 0.445324; -0.000116.
+- Shift 3: 0.446019; +0.000579.
+- Shift 4: 0.446888; +0.001448.
+- Shift 5: 0.446285; +0.000845.
+- Shift 6: 0.444026; -0.001414.
+- Shift 7: 0.451819; +0.006378.
+- Shift 8: 0.437192; -0.008248.
+- Shift 9: 0.449263; +0.003823.
+- Shift 10: 0.444580; -0.000860.
+- Shift 11: 0.446011; +0.000571.
+
+The mean of these 11 displayed shift means is approximately 0.445697 versus the original observed-GARS mean 0.445440. The observed alignment therefore has only about a 0.000257 average loss advantage across the cyclic shifts using the rounded values. Four shifts (1, 2, 6, 10) have lower mean loss than observed GARS; seven have higher mean loss.
+
+**Per-seed observed versus cyclic distributions:**
+- Seed 42: observed GARS loss 0.453595; cyclic mean 0.451294; range 0.437061–0.457203. The cyclic mean is lower (better).
+- Seed 123: observed 0.433675; cyclic mean 0.433203; range 0.425246–0.435647. The cyclic mean is lower (better).
+- Seed 999: observed 0.449050; cyclic mean 0.452592; range 0.448906–0.464933. The observed alignment is lower (better).
+
+**Interpretation:** the observed gradient-to-layer assignment does not consistently outperform the cyclic reassignment controls. Its aggregate advantage is very small and the direction differs by seed. The spread across shifts, especially the low shift-8 and high shift-7 means, indicates that layer assignment can materially affect the discrete allocation and validation loss. This does not establish that the naturally observed assignment is optimal or generally helpful.
+
+**Evidence boundary:** these are three seeds on one model/task and the RTE validation split. The 11 cyclic shifts are deterministic rotations, not random permutations from the full assignment space and not a formal permutation test. No significance, causality or generalization claim is supported. The supplied console output is rounded; full-precision per-shift/per-seed results and allocation rank differences must be extracted from the local JSON before the final Phase 1 report is frozen.
+
+**Next action:** inspect the exact 33 per-seed/per-shift metric records and rank-allocation changes from results/v1_gradient_permutation/gradient_permutation_summary.json; verify run_count, completion status, common physical A/B parameter budget and all reload statuses. Then update the final mechanism narrative using full-precision values.
