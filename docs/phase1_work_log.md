@@ -45,3 +45,17 @@ The student ran Ruff on the local Apple Silicon environment and shared six findi
 - Marked the unused dense-SVD right-singular-vector variable as intentionally unused.
 
 The Ruff check itself has not yet been rerun after the fixes, and pytest has not yet been executed. Record the rerun results here once supplied by the student.
+
+
+## 15 November 2026 — first local pytest run and test corrections
+
+The student ran `python -m pytest -q` on the experiment Mac. The first run reported 19 passed and 2 failed.
+
+**Failure analysis and corrections committed:**
+- The physical-parameter-count test expected 46, but its own documented expression evaluates to (2(4+4)+1(4+4)+3(4+6)=16+8+30=54). The implementation's physical A/B parameter formula, `rank * (in_features + out_features)`, is correct. The test expectation and arithmetic comment were corrected to 54.
+- The QR-SVD implementation returns a compact spectrum bounded by the LoRA factor rank (5 in the test). The dense SVD of a 13-by-11 product returns 11 singular values, with six trailing numerical zeros because the product rank is at most 5. The test now compares the five leading singular values, checks that the remaining dense singular values are zero within tolerance, verifies reconstruction and checks the compact factor shapes.
+- Clarified the QR-SVD docstring to describe its compact, rank-bounded spectrum and the omission of trailing zeros.
+
+An isolated float64 numerical check of the QR-SVD test case confirmed a maximum leading-spectrum difference of approximately (1.25\times10^{-14}), trailing dense singular values below (3.2\times10^{-15}), and reconstruction error below (8.5\times10^{-15}). This is a targeted numerical sanity check, not a full test-suite rerun.
+
+**Verification still required:** the corrected test suite and Ruff have not yet been rerun on the student's Mac. Do not start the parent-adapter training run until both checks pass.
