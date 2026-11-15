@@ -158,6 +158,7 @@ def train_seed(
     training_cfg = config["training"]
     lora_cfg = config["lora"]
     model_cfg = config["model"]
+    dataset_cfg = config["dataset"]
 
     set_seed(seed)
     random.seed(seed)
