@@ -1,8 +1,8 @@
 """GARS, uniform-energy and global-singular-value budget allocation policies."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 from collections.abc import Mapping
+from dataclasses import dataclass
 
 import torch
 
