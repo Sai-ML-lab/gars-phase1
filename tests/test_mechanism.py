@@ -25,7 +25,7 @@ def test_correlation_summary_returns_null_for_constant_vector():
 def test_rank_agreement_reports_exact_matches_and_absolute_error():
     result = rank_agreement([1, 2, 3, 4], [1, 3, 2, 6])
     assert result["exact_rank_match_fraction"] == pytest.approx(0.25)
-    assert result["mean_absolute_rank_difference"] == pytest.approx(0.75)
+    assert result["mean_absolute_rank_difference"] == pytest.approx(1.0)
     assert result["max_absolute_rank_difference"] == pytest.approx(2.0)
 
 
