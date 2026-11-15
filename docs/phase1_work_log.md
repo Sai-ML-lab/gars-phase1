@@ -679,3 +679,42 @@ Cyclic rank changes affect 7–16 of 24 modules per shift, averaging 13.15 chang
 **Final interpretation:** the layer-score assignment changes the discrete allocation and validation outcomes, but the naturally observed gradient-to-layer assignment is not consistently superior to cyclic reassignment. The small aggregate advantage is descriptive and does not establish causality, an optimal alignment, or generalization. The rotations are a structured subset of assignments, not all possible permutations and not an inferential permutation test. Keep this result as a mechanism limitation/diagnostic rather than claiming demonstrated predictive benefit from the natural alignment.
 
 A detailed per-shift table with full metric precision, rank changes and rank correlations was committed to docs/gars_gradient_alignment_ablation.md.
+
+
+## 15 November 2026 — follow-on Phase 1 experiment infrastructure added
+
+The next work package is designed to address the proposal's remaining evidence gaps: inference efficiency, cross-task replication and a second model scale. The source changes and configs are committed, but they have not yet been run through the student's local quality gates or on MPS.
+
+**Inference benchmark:**
+- Added scripts/benchmark_gars_inference.py for the parent, GARS, uniform-local-energy and global-singular-value adapters.
+- Default design covers seeds 42/123/999, merged and unmerged inference, and batch sizes 1/8/32.
+- Uses FP32, model.eval(), torch.inference_mode(), synchronized MPS timing, and includes input transfer in the timed request.
+- Excludes model loading and merge time; checks merged/unmerged logits at a fixed batch before timing.
+- Records mean/median/p90/p95/sample-SD batch latency, throughput and current allocated device-memory snapshots. These are not peak-memory measurements.
+- Uses a fixed prefix of 256 validation examples with full batches. Warmup=10 and timed=100 forwards per batch-size/mode by default.
+- Writes partial results after each adapter condition and supports --resume for an existing partial report.
+- Added tests/test_inference_benchmark.py for the timing/statistics helper.
+
+**Second-task replication:**
+- Added configs/v1_deberta_mrpc.json, preserving the base model revision, LoRA configuration, training hyperparameters, seeds, gradient window and parameter budget while changing the GLUE task from RTE to MRPC.
+- Updated the existing sentence-pair training, pruning, validation and diagnostic descriptions to display the configured GLUE task.
+- The parent-training runner now persists stepwise_importance_by_optimizer_step (the individual layer scores for all 50 captured optimizer updates), in addition to the existing arithmetic mean and accumulator state. This adds a small JSON record and does not change the training update or allocation rule.
+
+**Temporal gradient analysis:**
+- Added scripts/analyze_gradient_temporal.py for step-versus-window-mean rank concordance, adjacent-step rank stability, early-versus-late window profile similarity, within-layer gradient coefficient of variation and cross-seed normalized mean-profile consistency.
+- Added tests/test_gradient_temporal.py with synthetic and invalid-artifact coverage.
+
+**Second model scale:**
+- Added configs/v1_deberta_large_rte.json for microsoft/deberta-v3-large at pinned revision ba88b9f7a65194e583ec1a516279f9641b864267, configured for 24 Transformer layers.
+- The pruning exporter and parent adapter validator now read the configured Transformer depth, rather than hard-coding 12 layers.
+- Generalized scripts/analyze_gars_mechanisms.py to accept a config and derive base revision, layer count, module count, capture-window size and rank bounds from it. Its original default base/RTE invocation remains supported for existing tests.
+- The large-model run is gated by scripts/diagnose_deberta_rte.py --config configs/v1_deberta_large_rte.json --device mps --steps 3. Do not start full training until this numerical preflight passes.
+
+**Documentation:**
+- Added docs/phase1_experiment_roadmap.md with exact commands, separate output roots, conditions, interpretation boundaries and recommended execution order.
+
+**Local verification still required:** after pulling the latest main branch, run:
+- ruff check scripts src/gars tests experiments
+- python -m pytest -q
+
+The previous user-reported test pass predates these follow-on changes and does not verify the new benchmark, temporal analysis or depth-generalization code. No latency, MRPC or large-model result is claimed yet.
