@@ -366,6 +366,11 @@ def train_seed(
     )
 
     trainable_count = sum(parameter.numel() for parameter in trainable_parameters)
+    lora_factor_count = sum(
+        parameter.numel()
+        for name, parameter in model.named_parameters()
+        if "lora_A" in name or "lora_B" in name
+    )
     total_count = sum(parameter.numel() for parameter in model.parameters())
 
     metadata = {
@@ -386,7 +391,8 @@ def train_seed(
         "lora_config": lora_cfg,
         "total_optimizer_steps": total_optimizer_steps,
         "gradient_capture_steps": gradient_accumulator.steps_seen,
-        "trainable_parameter_count": trainable_count,
+        "trainable_parameter_count_including_modules_to_save": trainable_count,
+        "lora_A_B_factor_parameter_count": lora_factor_count,
         "total_model_parameter_count": total_count,
         "final_validation": final_metrics,
         "epoch_metrics": training_log,
