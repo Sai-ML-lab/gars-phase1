@@ -484,3 +484,21 @@ Added a local analysis workflow using the already saved parent gradient-importan
 **Important data limitation:** The V1 gradient artifact contains each layer's arithmetic mean over the final 50 updates plus accumulator sums/counts, but does not preserve the 50 individual step-level scores. Thus the present saved artifacts support cross-seed rank reliability, not within-window temporal variance, autocorrelation or minibatch-level stability. The script marks temporal within-window reliability as not estimable. Measuring it requires a future instrumented parent-training run that persists per-update layer scores; it cannot be reconstructed from the current means.
 
 **Next action:** pull the latest main branch; run full-tree Ruff and pytest; run `python scripts/analyze_gars_mechanisms.py` against the existing local seed 42/123/999 artifacts. Inspect cross-seed Spearman concordance and the within-seed associations cautiously as descriptive evidence. Do not claim significance or temporal reliability from these three runs.
+
+
+## 15 November 2026 — first mechanism analysis reviewed; depth-control extension added
+
+The student supplied the output of `scripts/analyze_gars_mechanisms.py` for seeds 42, 123 and 999.
+
+Observed descriptive results:
+- Cross-seed block-gradient ranking Spearman rho: 0.9720 (42 vs 123), 0.9580 (123 vs 999), 0.9441 (42 vs 999); mean 0.9580, sample SD 0.0140.
+- Cross-seed squared-spectral-entropy profile correlation: mean rho 0.8330 across the 24 projection modules; layer-averaged entropy profile mean rho 0.9324 across 12 blocks.
+- Cross-seed retained-rank allocation stability at module level: GARS mean rho 0.8288, uniform local energy 0.9320, global singular-value 0.9525. At layer-averaged level: GARS 0.8913, uniform 0.9407, global 0.9433. This indicates the gradient score ordering is stable, but the resulting GARS rank allocation is less stable across seeds than the two spectrum-only policies in this pilot.
+- Within-seed layer-level gradient importance vs mean spectral entropy: mean rho -0.9394.
+- Gradient importance vs GARS-minus-uniform layer mean rank: mean rho +0.7176.
+- Gradient importance vs GARS mean rank itself: mean rho +0.0233; this near-zero association coexists with the positive rank-uplift association, suggesting the spectral profile and base layer-wise rank requirements interact with the gradient-conditioned shift.
+- Module spectral entropy vs GARS-minus-uniform rank change: mean rho -0.4938.
+
+**Interpretation caution:** the strong gradient/entropy and entropy/rank associations could be confounded by Transformer depth. Gradient magnitudes and spectral structure may both change systematically from early to late blocks. A raw cross-layer Spearman correlation cannot distinguish a depth trend from a direct relationship. The first analysis was therefore treated as exploratory, not causal or mechanistic proof.
+
+**Depth-control diagnostic added:** `partial_spearman_rank_correlation` now residualizes ranked variables against ranked layer index before correlating. The analysis script additionally reports per-seed partial correlations for gradient/entropy, gradient/GARS rank, gradient/GARS-minus-uniform rank uplift, and entropy/GARS rank; layer-depth trends; and the count of GARS thresholds clipped at 0.80 or 0.99. These are descriptive sensitivity diagnostics, not causal adjustment or significance tests. Unit/integration tests were added. The student's next local run must pass Ruff and pytest before regenerating the mechanism report.
