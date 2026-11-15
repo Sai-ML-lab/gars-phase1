@@ -299,3 +299,13 @@ The previous run's 28 passing tests remain valid; the failing assertion was a st
 
 
 **Follow-up import-order cleanup:** the newly added public imports in `tests/test_imports.py` were placed in Ruff/isort order in a follow-up commit. The student should rerun the quality gates after pulling; expected suite size is 29 tests (28 previously passed plus the corrected package import test).
+
+
+## 15 November 2026 — expanded test suite passed after export implementation
+
+The student reports `python -m pytest -q` now passes all 29 tests after synchronizing the package version to 0.3.0 and correcting the import-test expectation. This includes the new PEFT scaling-preservation and module-pattern utility tests. Ruff status for this latest commit has not yet been reported.
+
+**Next gate before running the pruning exporter:**
+1. Confirm Ruff is clean on the new `scripts/run_pruning_comparison.py`, `scripts/validate_parent_adapter.py`, package source and tests.
+2. Obtain the resolved local Hugging Face snapshot SHA for `microsoft/deberta-v3-base`, and compare against the parent run metadata/cache. The historical parent runs record a floating `main` revision, so the actual snapshot SHA must not be retroactively claimed without evidence.
+3. After the revision provenance decision, run the pruning comparison for seed 42 only. The script refuses floating revisions unless explicitly overridden, and the override should be used only after verifying the local snapshot was the one used by all parent runs.
