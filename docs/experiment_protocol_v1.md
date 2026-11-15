@@ -169,3 +169,48 @@ Two equivalence checks are enforced:
 - `beta=0.5` must reproduce the original V1 GARS allocation for that seed.
 
 The sweep records full-precision validation metrics, paired changes versus parent, rank histograms, cross-seed allocation correlations, rank changes relative to beta=0, and the number of layer thresholds clipped at each bound. This is a sensitivity analysis, not a hyperparameter-selection exercise: do not choose beta using the validation split and then describe the same validation result as an unbiased estimate. The fixed beta=0.5 remains the V1 configuration; alternative values are exploratory.
+
+
+## Cyclic gradient-to-layer alignment ablation
+
+The beta sensitivity sweep established that changing beta changes the allocated ranks more than the aggregate RTE validation metrics. The next controlled diagnostic asks whether the *observed assignment* of gradient importance to Transformer blocks carries useful information, rather than merely the gradient-score distribution.
+
+### Controlled reassignment
+
+Use the same three trained parent adapters (seeds 42, 123 and 999), their existing spectra and the frozen V1 beta (0.5). For sorted layer IDs \(L=(l_0,\ldots,l_{11})\), define cyclic shift \(s\) by assigning:
+
+\[
+g'_{l_i}=g_{l_{(i-s)\bmod 12}}, \qquad s\in\{1,\ldots,11\}.
+\]
+
+Each non-identity shift preserves the exact 12-score multiset and its mean, but changes which Transformer block receives each observed score. Across all 11 non-identity shifts, every source-layer score is assigned to every other destination layer exactly once.
+
+For each seed and shift, rerun only the GARS physical export, reload and RTE validation. Keep unchanged:
+- the trained parent adapter and all 24 projection spectra;
+- beta=0.5, threshold clipping [0.80, 0.99], and minimum rank 2;
+- the 60% target physical A/B parameter fraction;
+- the pinned DeBERTa-v3-base revision, tokenizer, validation examples and evaluation code;
+- PEFT rank/alpha export and runtime scaling checks.
+
+This creates 33 matched-budget GARS exports (11 shifts × 3 seeds), referenced against the already completed observed-alignment GARS allocations and validation scores. The expected physical factor count is the same as the original matched-budget GARS runs.
+
+### Implementation and checks
+
+- The cyclically_shift_importance helper performs reassignment deterministically and validates layer IDs, shift and finite non-negative scores.
+- tests/test_importance_ablation.py checks score-multiset and mean preservation, cyclic wraparound and exhaustive source-to-other-layer coverage across all non-identity shifts.
+- scripts/run_pruning_comparison.py --importance-cyclic-shift N uses the reassigned importance map for GARS and records original/assigned scores plus the destination-to-source layer mapping in allocation.json.
+- scripts/run_gars_gradient_permutation.py orchestrates the 11 shifts across seeds, verifies revision, assignment metadata, physical budget and reload status, then records per-seed and across-seed paired validation and rank-allocation comparisons.
+
+Run after the local quality gates pass:
+
+\`\`\`bash
+ruff check scripts src/gars tests experiments
+python -m pytest -q
+python scripts/run_gars_gradient_permutation.py --device mps
+\`\`\`
+
+The default output is results/v1_gradient_permutation/gradient_permutation_summary.json. The runner refuses a non-empty output directory unless --overwrite is explicitly passed. For a completed run, verify that run_count is 33, all_requested_runs_completed is true, every shift/seed reload status is passed, and every export has the same physical A/B factor count.
+
+### Interpretation boundary
+
+This is a deterministic cyclic-alignment control, not a draw from all possible permutations and not a formal permutation test. It can show whether the observed layer-score alignment behaves differently from a structured set of reassigned alignments in this particular three-seed RTE pilot. It cannot establish statistical significance, causality or generalization. Validation metrics remain descriptive and must not be used to retune beta. Report the full per-seed spread and rank-allocation changes; do not report only the best shift.
