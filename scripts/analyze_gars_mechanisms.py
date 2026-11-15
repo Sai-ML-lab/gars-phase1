@@ -251,7 +251,10 @@ def _load_seed_artifacts(
     }
 
 
-def build_mechanism_report(seeds: list[int], artifacts: dict[int, dict[str, Any]]) -> dict[str, Any]:
+def build_mechanism_report(
+    seeds: list[int],
+    artifacts: dict[int, dict[str, Any]],
+) -> dict[str, Any]:
     gradient_profiles = {
         str(seed): artifacts[seed]["gradient_by_layer"] for seed in seeds
     }
@@ -299,8 +302,6 @@ def build_mechanism_report(seeds: list[int], artifacts: dict[int, dict[str, Any]
     entropy_rank_rhos: dict[str, list[float]] = {method: [] for method in METHODS}
     gradient_rank_uplift_rhos: list[float] = []
     entropy_gars_uniform_module_rhos: list[float] = []
-    module_tables: dict[str, list[dict[str, Any]]] = {}
-
     for seed in seeds:
         item = artifacts[seed]
         gradient = item["gradient_by_layer"]
@@ -416,8 +417,6 @@ def build_mechanism_report(seeds: list[int], artifacts: dict[int, dict[str, Any]
             "module_profiles": module_rows,
             "gars_thresholds_by_layer": method_data["gars"]["thresholds_by_layer"],
         }
-        module_tables[seed_key] = module_rows
-
     within_seed = {
         "gradient_vs_layer_mean_spectral_entropy": descriptive_stats(gradient_entropy_rhos),
         "gradient_vs_layer_mean_rank": {
@@ -441,8 +440,14 @@ def build_mechanism_report(seeds: list[int], artifacts: dict[int, dict[str, Any]
         "design": {
             "gradient_unit": "Transformer block; joint LoRA A/B gradient Frobenius norm",
             "gradient_aggregation": "arithmetic mean over final 50 optimizer updates",
-            "spectral_entropy": "normalized entropy of squared singular-value energy; lower means more concentrated",
-            "allocation_unit": "per LoRA projection module; layer summaries average the two target projections",
+            "spectral_entropy": (
+                "normalized entropy of squared singular-value energy; "
+                "lower means more concentrated"
+            ),
+            "allocation_unit": (
+                "per LoRA projection module; layer summaries average "
+                "the two target projections"
+            ),
             "correlation": "Spearman rank correlation; descriptive, not a significance test",
         },
         "data_completeness": {
