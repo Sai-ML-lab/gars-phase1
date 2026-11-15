@@ -268,6 +268,7 @@ def train_seed(
     adapter_dir = seed_dir / "parent_adapter"
     adapter_dir.mkdir(parents=True, exist_ok=True)
     log_path = seed_dir / "training_log.jsonl"
+    log_path.write_text("", encoding="utf-8")
 
     global_step = 0
     optimizer.zero_grad(set_to_none=True)
@@ -291,6 +292,19 @@ def train_seed(
             }
             outputs = model(**model_inputs, labels=labels)
             loss = outputs.loss
+            if not bool(torch.isfinite(outputs.logits).all().item()):
+                raise RuntimeError(
+                    "Non-finite logits detected before backward: "
+                    f"seed={seed}, epoch={epoch + 1}, batch={batch_index + 1}, "
+                    f"optimizer_step={global_step}, device={device}."
+                )
+            if not bool(torch.isfinite(loss).all().item()):
+                raise RuntimeError(
+                    "Non-finite loss detected before backward: "
+                    f"seed={seed}, epoch={epoch + 1}, batch={batch_index + 1}, "
+                    f"optimizer_step={global_step}, labels={labels.detach().cpu().tolist()}, "
+                    f"device={device}."
+                )
             epoch_losses.append(float(loss.detach().float().cpu().item()))
             (loss / group_size).backward()
 
@@ -308,6 +322,7 @@ def train_seed(
             torch.nn.utils.clip_grad_norm_(
                 trainable_parameters,
                 max_norm=float(training_cfg["max_grad_norm"]),
+                error_if_nonfinite=True,
             )
             optimizer.step()
             scheduler.step()
@@ -321,6 +336,9 @@ def train_seed(
             **validation_metrics,
         }
         training_log.append(log_entry)
+        with log_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(log_entry, sort_keys=True) + "\n")
+            handle.flush()
         print(
             f"seed={seed} epoch={epoch + 1}/{epochs} "
             f"step={global_step}/{total_optimizer_steps} "
@@ -400,10 +418,6 @@ def train_seed(
         ),
     }
     _write_json(seed_dir / "run_metadata.json", metadata)
-
-    with log_path.open("w", encoding="utf-8") as handle:
-        for entry in training_log:
-            handle.write(json.dumps(entry, sort_keys=True) + "\n")
 
     print(f"Saved parent adapter and metadata: {seed_dir}", flush=True)
     return seed_dir
