@@ -215,7 +215,8 @@ def train_seed(
     loaded_dtypes = {parameter.dtype for parameter in base_model.parameters()}
     if loaded_dtypes != {torch.float32}:
         raise RuntimeError(
-            f"Expected all base-model parameters to be float32 before training, got {loaded_dtypes}."
+            "Expected all base-model parameters to be float32 before training, "
+            f"got {loaded_dtypes}."
         )
     base_model.config.problem_type = "single_label_classification"
 
