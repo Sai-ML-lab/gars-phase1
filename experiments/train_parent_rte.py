@@ -426,7 +426,7 @@ def train_seed(
         "experiment_id": config.get("experiment_id"),
         "seed": seed,
         "base_model": model_cfg["id"],
-        "base_model_revision": getattr(model.config, "_commit_hash", None),
+        "base_model_revision": getattr(model.config, "_commit_hash", None) or str(model_cfg.get("revision", "main")),
         "dataset": dataset_cfg,
         "train_dataset_fingerprint": getattr(train_dataset, "_fingerprint", None),
         "validation_dataset_fingerprint": getattr(validation_dataset, "_fingerprint", None),
