@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import statistics
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
-from gars.diagnostics import descriptive_stats, pairwise_profile_correlations
+from gars.diagnostics import pairwise_profile_correlations
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BETAS = (0.0, 0.25, 0.5, 0.75, 1.0)
