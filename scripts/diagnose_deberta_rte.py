@@ -14,6 +14,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import transformers
 from datasets import load_dataset
 from peft import LoraConfig, TaskType, get_peft_model
 from torch.utils.data import DataLoader
@@ -24,6 +25,14 @@ from transformers import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _model_load_dtype_kwargs() -> dict[str, torch.dtype]:
+    """Select the explicit FP32 loading argument for Transformers v4 or v5."""
+    major_version = int(transformers.__version__.split(".", maxsplit=1)[0])
+    if major_version >= 5:
+        return {"dtype": torch.float32}
+    return {"torch_dtype": torch.float32}
 
 
 def _device(name: str) -> torch.device:
@@ -152,6 +161,7 @@ def main() -> None:
         revision=model_cfg.get("revision", "main"),
         num_labels=int(model_cfg.get("num_labels", 2)),
         output_loading_info=True,
+        **_model_load_dtype_kwargs(),
     )
     base_model.config.problem_type = "single_label_classification"
     print("Loading report:")
@@ -161,10 +171,10 @@ def main() -> None:
         "mismatched_keys": _string_list(loading_info.get("mismatched_keys", [])),
         "error_msgs": _string_list(loading_info.get("error_msgs", [])),
     }, indent=2))
-    print(
-        "Loaded parameter dtypes:",
-        sorted({str(parameter.dtype) for parameter in base_model.parameters()}),
-    )
+    loaded_dtypes = {parameter.dtype for parameter in base_model.parameters()}
+    print("Loaded parameter dtypes:", sorted(str(dtype) for dtype in loaded_dtypes))
+    if loaded_dtypes != {torch.float32}:
+        raise RuntimeError(f"Expected all base-model parameters to be float32, got {loaded_dtypes}.")
     base_model.to(device)
     base_model.train()
     inputs, labels = _model_batch(first_batch, device)
@@ -195,6 +205,9 @@ def main() -> None:
     )
     peft_model.to(device)
     peft_model.train()
+    peft_dtypes = {parameter.dtype for parameter in peft_model.parameters()}
+    if peft_dtypes != {torch.float32}:
+        raise RuntimeError(f"Expected all PEFT model parameters to be float32, got {peft_dtypes}.")
     trainable = [
         (name, parameter)
         for name, parameter in peft_model.named_parameters()
