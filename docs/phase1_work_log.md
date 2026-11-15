@@ -611,3 +611,19 @@ After the beta sensitivity sweep, the next research question is whether the obse
 2. Run the cyclic ablation on MPS with the default 11 shifts and three seeds.
 3. Share the terminal summary and confirm run_count = 33, all reload checks passed and a common physical A/B parameter count.
 4. Interpret the observed-alignment GARS metrics against the full cyclic-shift distribution for each seed. Do not select the best shift.
+
+
+## 15 November 2026 — smoke test completed; single-seed summary formatter corrected
+
+The student ran the cyclic alignment smoke test for shift 1 and seed 42. The GARS export, PEFT reload validation and RTE validation evaluation all completed:
+- Accuracy: 0.81949
+- Macro-F1: 0.81622
+- Validation loss: 0.45328
+- Physical A/B parameter reduction: 39.974%
+- The per-run comparison summary and the smoke aggregate JSON were written successfully.
+
+The process then raised a TypeError while printing the aggregate summary. This smoke test intentionally used only one seed, so the sample standard deviation field is null (undefined for n=1); the formatter attempted to apply the floating-point format specifier to that null value. This is a reporting-only failure after the completed export/evaluation, not a model, allocation, reload or metric-evaluation failure. The Transformers is_gradient_checkpointing FutureWarning is also non-fatal and unrelated.
+
+**Fix committed:** scripts/run_gars_gradient_permutation.py now formats a missing sample standard deviation explicitly as n/a (one seed). Added tests/test_gradient_permutation_runner.py to cover both one-seed and multi-seed formatting. The existing smoke outputs need not be overwritten or recomputed.
+
+**Next action:** pull the formatter/test fix, run full-tree Ruff and pytest, verify the existing smoke JSON reports one completed run and all_requested_runs_completed = true, then launch the default 33-export cyclic alignment experiment to a separate output directory results/v1_gradient_permutation.
