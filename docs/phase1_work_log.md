@@ -658,3 +658,24 @@ The mean of these 11 displayed shift means is approximately 0.445697 versus the 
 **Evidence boundary:** these are three seeds on one model/task and the RTE validation split. The 11 cyclic shifts are deterministic rotations, not random permutations from the full assignment space and not a formal permutation test. No significance, causality or generalization claim is supported. The supplied console output is rounded; full-precision per-shift/per-seed results and allocation rank differences must be extracted from the local JSON before the final Phase 1 report is frozen.
 
 **Next action:** inspect the exact 33 per-seed/per-shift metric records and rank-allocation changes from results/v1_gradient_permutation/gradient_permutation_summary.json; verify run_count, completion status, common physical A/B parameter budget and all reload statuses. Then update the final mechanism narrative using full-precision values.
+
+
+### Full-precision seed-by-shift alignment diagnostics
+
+The student extracted all 33 per-seed/per-shift records from the saved summary. This confirms the aggregate completion checks:
+- run count = 33; completion flag = true;
+- physical A/B parameter budget = 708,096;
+- all 33 reload statuses = passed.
+
+Observed-GARS loss rank among the observed result plus 11 cyclic rotations (rank 1 = lowest loss):
+- Seed 42: rank 7; six cyclic rotations have lower loss. Cyclic mean 0.451294047, sample SD 0.006705974, range 0.437060610–0.457202768.
+- Seed 123: rank 5; four rotations have lower loss. Cyclic mean 0.433203363, sample SD 0.002763307, range 0.425246308–0.435647363.
+- Seed 999: rank 2; one rotation has lower loss. Cyclic mean 0.452592390, sample SD 0.005347492, range 0.448905932–0.464932710.
+
+Across all 33 seed-by-shift records, 11 cyclic controls have lower loss than the corresponding observed GARS result and 22 have higher loss. The equal-weighted mean of the cyclic observations is approximately 0.445696600 versus 0.445440045 for original GARS, a small observed-alignment loss advantage of approximately 0.000256555. This aggregate difference hides strong seed heterogeneity: the cyclic mean is lower (better) for seeds 42 and 123, while original GARS is lower for seed 999.
+
+Cyclic rank changes affect 7–16 of 24 modules per shift, averaging 13.15 changed modules across the 33 exports. The observed assignment is not the lowest-loss result for any seed when compared with its 11 rotations, but its relative position differs materially by seed (7th, 5th, 2nd).
+
+**Final interpretation:** the layer-score assignment changes the discrete allocation and validation outcomes, but the naturally observed gradient-to-layer assignment is not consistently superior to cyclic reassignment. The small aggregate advantage is descriptive and does not establish causality, an optimal alignment, or generalization. The rotations are a structured subset of assignments, not all possible permutations and not an inferential permutation test. Keep this result as a mechanism limitation/diagnostic rather than claiming demonstrated predictive benefit from the natural alignment.
+
+A detailed per-shift table with full metric precision, rank changes and rank correlations was committed to docs/gars_gradient_alignment_ablation.md.
