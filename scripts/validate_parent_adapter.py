@@ -92,6 +92,7 @@ def _inspect_adapter_tensors(
     adapter_path: Path,
     expected_lora_parameters: int,
     expected_rank: int,
+    expected_module_count: int,
 ) -> dict[str, Any]:
     weights_path = adapter_path / "adapter_model.safetensors"
     if not weights_path.is_file():
@@ -154,6 +155,12 @@ def _inspect_adapter_tensors(
         raise RuntimeError(
             "Saved LoRA factor count does not match training metadata: "
             f"file={factor_parameters}, metadata={expected_lora_parameters}."
+        )
+    if len(module_ranks) != expected_module_count:
+        raise RuntimeError(
+            "Saved LoRA module count does not match the configured target modules "
+            "and Transformer blocks: "
+            f"file={len(module_ranks)}, expected={expected_module_count}."
         )
 
     classifier_keys = [key for key in state if "classifier" in key]
@@ -258,6 +265,10 @@ def main() -> None:
         adapter_path,
         expected_lora_parameters=int(metadata["lora_A_B_factor_parameter_count"]),
         expected_rank=int(config["lora"]["rank"]),
+        expected_module_count=(
+            len(gradients["importance_by_transformer_block"])
+            * len(config["lora"]["target_modules"])
+        ),
     )
 
     device = _device(args.device)
