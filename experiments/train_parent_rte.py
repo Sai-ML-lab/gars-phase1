@@ -105,13 +105,13 @@ def _prepare_datasets(config: dict[str, Any], tokenizer: Any):
         tokenize_batch,
         batched=True,
         remove_columns=train_raw.column_names,
-        desc="Tokenizing RTE train split",
+        desc=f"Tokenizing GLUE {dataset_cfg['config']} train split",
     )
     validation = validation_raw.map(
         tokenize_batch,
         batched=True,
         remove_columns=validation_raw.column_names,
-        desc="Tokenizing RTE validation split",
+        desc=f"Tokenizing GLUE {dataset_cfg['config']} validation split",
     )
     return train, validation
 
@@ -437,7 +437,10 @@ def train_seed(
         "experiment_id": config.get("experiment_id"),
         "seed": seed,
         "base_model": model_cfg["id"],
-        "base_model_revision": getattr(model.config, "_commit_hash", None) or str(model_cfg.get("revision", "main")),
+        "base_model_revision": (
+            getattr(model.config, "_commit_hash", None)
+            or str(model_cfg.get("revision", "main"))
+        ),
         "dataset": dataset_cfg,
         "train_dataset_fingerprint": getattr(train_dataset, "_fingerprint", None),
         "validation_dataset_fingerprint": getattr(validation_dataset, "_fingerprint", None),
