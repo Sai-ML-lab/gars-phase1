@@ -137,6 +137,11 @@ def _load_seed_artifacts(
             f"Seed {seed}: expected {expected_capture_steps} gradient capture steps, "
             f"got {capture_steps}."
         )
+    stepwise_records = gradient_data.get("stepwise_importance_by_optimizer_step")
+    stepwise_capture_available = (
+        isinstance(stepwise_records, list)
+        and len(stepwise_records) == expected_capture_steps
+    )
     accumulator = gradient_data.get("accumulator_state", {})
     counts = {
         str(int(layer)): int(count)
@@ -263,6 +268,7 @@ def _load_seed_artifacts(
         "base_model_revision": revision,
         "achieved_parameters": expected_budget,
         "gradient_capture_steps": capture_steps,
+        "stepwise_capture_available": stepwise_capture_available,
         "gradient_counts_by_layer": counts,
         "gradient_by_layer": gradients,
         "normalized_gradient_by_layer": {
@@ -571,12 +577,24 @@ def build_mechanism_report(
                 str(seed): artifacts[seed]["gradient_capture_steps"] for seed in seeds
             },
             "temporal_within_window_reliability": {
-                "estimable": False,
+                "estimable": all(
+                    artifacts[seed]["stepwise_capture_available"] for seed in seeds
+                ),
+                "stepwise_capture_available_by_seed": {
+                    str(seed): artifacts[seed]["stepwise_capture_available"]
+                    for seed in seeds
+                },
                 "reason": (
-                    "V1 artifacts persist the final-window mean per-layer gradient score "
-                    "and accumulator sums/counts, but not the 50 individual step-level "
-                    "scores. Cross-seed ranking consistency is estimable; within-window "
-                    "temporal variance/autocorrelation is not."
+                    "Per-step layer scores are present for every seed; run "
+                    "scripts/analyze_gradient_temporal.py for within-window diagnostics."
+                    if all(
+                        artifacts[seed]["stepwise_capture_available"] for seed in seeds
+                    )
+                    else (
+                        "At least one artifact stores only the final-window mean and "
+                        "accumulator sums/counts. Retrain that seed with the updated "
+                        "runner to estimate within-window variance/autocorrelation."
+                    )
                 ),
             },
         },
