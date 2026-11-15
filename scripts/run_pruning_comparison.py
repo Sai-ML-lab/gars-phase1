@@ -4,7 +4,7 @@ For one trained seed, this script creates three PEFT-compatible exports:
 uniform local squared-energy, global singular-value cutoff, and GARS. It keeps
 the original LoRA scaling multiplier constant through per-module alpha_pattern.
 Each export is reloaded on a fresh FP32 base model and evaluated on the same
-GLUE RTE validation split as the parent run.
+configured GLUE validation split as the parent run.
 """
 from __future__ import annotations
 
@@ -184,7 +184,10 @@ def _load_validation(
         tokenize_batch,
         batched=True,
         remove_columns=validation_raw.column_names,
-        desc="Tokenizing RTE validation split for pruning comparison",
+        desc=(
+            f"Tokenizing GLUE {dataset_cfg['config']} validation split "
+            "for pruning comparison"
+        ),
     )
     collator = DataCollatorWithPadding(tokenizer=tokenizer, return_tensors="pt")
     return DataLoader(
