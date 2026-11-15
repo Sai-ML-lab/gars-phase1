@@ -45,13 +45,23 @@ def test_qr_svd_matches_direct_dense_svd() -> None:
     U_qr, S_qr, Vh_qr = qr_svd_lora_update(A, B)
     U_dense, S_dense, _Vh_dense = torch.linalg.svd(B @ A, full_matrices=False)
 
-    assert torch.allclose(S_qr, S_dense, atol=1e-9, rtol=1e-8)
+    # QR-SVD returns the compact spectrum bounded by the LoRA factor rank.
+    # Dense SVD returns min(out_features, in_features) values, including
+    # trailing zeros when the product is rank-deficient.
+    expected_compact_rank = min(A.shape[0], B.shape[1], A.shape[1], B.shape[0])
+    assert S_qr.shape == (expected_compact_rank,)
+    assert torch.allclose(S_qr, S_dense[:expected_compact_rank], atol=1e-9, rtol=1e-8)
+    assert torch.allclose(
+        S_dense[expected_compact_rank:],
+        torch.zeros_like(S_dense[expected_compact_rank:]),
+        atol=1e-9,
+        rtol=0.0,
+    )
+
     reconstructed = U_qr @ torch.diag(S_qr) @ Vh_qr
     assert torch.allclose(reconstructed, B @ A, atol=1e-9, rtol=1e-8)
-
-    # Singular vectors can differ by sign within repeated/near-repeated subspaces;
-    # compare the represented matrix rather than U/Vh elementwise.
-    assert U_dense.shape == U_qr.shape
+    assert U_qr.shape == (B.shape[0], expected_compact_rank)
+    assert Vh_qr.shape == (expected_compact_rank, A.shape[1])
 
 
 def test_truncation_returns_physical_rank_k_factors() -> None:
