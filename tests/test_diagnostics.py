@@ -6,6 +6,7 @@ import pytest
 from gars.diagnostics import (
     descriptive_stats,
     pairwise_profile_correlations,
+    partial_spearman_rank_correlation,
     spearman_rank_correlation,
 )
 
@@ -57,3 +58,26 @@ def test_pairwise_profiles_reject_different_keys() -> None:
         pairwise_profile_correlations(
             {"42": {"0": 1.0, "1": 2.0}, "123": {"0": 2.0, "2": 3.0}}
         )
+
+
+
+def test_partial_spearman_removes_perfect_depth_only_association() -> None:
+    depth = [0, 1, 2, 3, 4]
+    assert (
+        partial_spearman_rank_correlation(depth, [10, 20, 30, 40, 50], depth)
+        is None
+    )
+
+
+def test_partial_spearman_detects_residual_association_after_depth_control() -> None:
+    depth = [0, 1, 2, 3, 4, 5]
+    left = [0, 2, 1, 5, 3, 7]
+    right = [0, 4, 2, 10, 6, 14]
+    result = partial_spearman_rank_correlation(left, right, depth)
+    assert result is not None
+    assert result == pytest.approx(1.0)
+
+
+def test_partial_spearman_rejects_mismatched_inputs() -> None:
+    with pytest.raises(ValueError, match="equal lengths"):
+        partial_spearman_rank_correlation([1, 2], [1, 2], [1])
