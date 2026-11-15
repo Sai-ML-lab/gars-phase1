@@ -377,3 +377,26 @@ The student completed the requested direct comparison of the two cached Hugging 
 - Added the verified tensor/config comparison and historical provenance limitation to the experiment protocol.
 
 **Next gate:** student pulls the updated main branch, reruns Ruff and pytest, then executes only the seed-42 pruning comparison. Do not run seeds 123 and 999 until seed 42 export/reload, physical rank, preserved scaling, and metric-evaluation checks pass.
+
+
+## 15 November 2026 — seed-42 pruning comparison completed
+
+The student completed `scripts/run_pruning_comparison.py --seed 42 --device mps`. All three post-hoc pruning policies exported, reloaded and evaluated successfully on the same 277-example GLUE RTE validation split. Each method achieved 708,096 physical LoRA A/B parameters from the 1,179,648-parameter parent, corresponding to a 39.9739583% reduction (target was 40%). All three reported `reload_validation = passed`.
+
+Parent validation: accuracy 0.8194945848, macro-F1 0.8162154989, loss 0.4519056692.
+
+| Policy | Accuracy | Macro-F1 | Loss | Accuracy delta | Macro-F1 delta | Loss delta |
+|---|---:|---:|---:|---:|---:|---:|
+| GARS | 0.8194945848 | 0.8162154989 | 0.4535951998 | 0.0000000 | 0.0000000 | +0.0016895306 |
+| Global singular value | 0.8158844765 | 0.8123530584 | 0.4551152880 | -0.0036101083 | -0.0038624406 | +0.0032096188 |
+| Uniform local energy | 0.8194945848 | 0.8158440591 | 0.4601263965 | 0.0000000 | -0.0003714398 | +0.0082207273 |
+
+GARS has the lowest validation loss among the three pruned methods and exactly matches the parent accuracy and macro-F1 at the reported precision. Relative to global singular-value pruning, GARS is higher by 0.3610 percentage points in accuracy and 0.3862 percentage points in macro-F1, with lower loss by 0.0015200882. Relative to uniform local energy, accuracy is equal, macro-F1 is higher by 0.0003714398, and loss is lower by 0.0065311967.
+
+The rank histograms show heterogeneous retained ranks under all policies. GARS ranks span 2–30; one projection reaches the configured minimum rank of 2. This is a descriptive observation only; no mechanism or statistical claim is inferred from one seed.
+
+Adapter weight file sizes were 5,208,424 bytes (GARS), 5,208,448 bytes (global singular value), and 5,208,440 bytes (uniform local energy). These serialized sizes are close; the main structural compression metric is the explicitly counted A/B factor parameter reduction.
+
+**Interpretation and limitations:** this is one seed on one model/task and 277 validation examples. It is preliminary evidence that GARS can reach the intended physical budget while retaining the parent validation accuracy/F1 on seed 42, and that it compares favorably with the two alternatives on this seed. It does not establish a robust advantage, significance, generalization to other seeds/models/tasks, or the proposal's multi-scale objective. No latency measurement has been made.
+
+**Next action:** run the same exporter for seeds 123 and 999 with the unchanged pinned V1 configuration. Preserve all seed-level outputs and compare paired policy differences across the three parent seeds before making an aggregate claim.
