@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Train one uncompressed DeBERTa/RTE LoRA parent and record its final-window gradients.
 
 This script creates the common parent checkpoint used by the post-hoc V1
@@ -35,7 +34,7 @@ from transformers import (
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from gars.importance import GradientImportanceAccumulator  # noqa: E402
+from gars.importance import GradientImportanceAccumulator
 
 
 def _package_version(package: str) -> str | None:
@@ -138,7 +137,7 @@ def _evaluate(
         "loss": float(np.mean(losses)),
         "accuracy": float(accuracy_score(references, predictions)),
         "macro_f1": float(f1_score(references, predictions, average="macro")),
-        "num_examples": int(len(references)),
+        "num_examples": len(references),
     }
 
 
