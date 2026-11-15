@@ -214,3 +214,26 @@ The default output is results/v1_gradient_permutation/gradient_permutation_summa
 ### Interpretation boundary
 
 This is a deterministic cyclic-alignment control, not a draw from all possible permutations and not a formal permutation test. It can show whether the observed layer-score alignment behaves differently from a structured set of reassigned alignments in this particular three-seed RTE pilot. It cannot establish statistical significance, causality or generalization. Validation metrics remain descriptive and must not be used to retune beta. Report the full per-seed spread and rank-allocation changes; do not report only the best shift.
+
+
+## Follow-on inference-efficiency benchmark
+
+After adapter export/reload correctness is established, benchmark the parent, GARS, uniform-local-energy and global-singular-value adapters in both PEFT-unmerged and dense merged inference modes.
+
+Use scripts/benchmark_gars_inference.py. The default conditions are seeds 42/123/999, batch sizes 1/8/32, FP32 on MPS, 10 warmup forwards and 100 timed forwards per batch-size/mode. Use the first 256 validation examples, drop incomplete batches and preserve the same ordered batches for every adapter. Synchronize MPS after each forward; include host-to-device input transfer in timed request latency. Exclude model loading and merge time. Before timing merged inference, compare merged/unmerged logits on one fixed batch and require max absolute difference <= 1e-4.
+
+Report mean, median, p90, p95 and sample SD of per-batch wall-clock latency, examples per second, and current device-memory snapshots. The current memory snapshots are not peak-memory measurements. Report merged and unmerged modes separately. Do not infer a speedup from physical A/B parameter reduction alone.
+
+The benchmark saves a partial JSON after each adapter/seed condition and supports resuming an existing partial report. Exact commands and output locations are maintained in docs/phase1_experiment_roadmap.md.
+
+## Cross-task replication: GLUE MRPC
+
+A separate DeBERTa-v3-base/MRPC experiment uses the same pinned model revision, LoRA configuration, training hyperparameters, three seeds, gradient capture window, beta, threshold bounds and target physical A/B parameter fraction as the RTE pilot. Only the GLUE task changes. Outputs must be stored under separate MRPC parent/pruned roots. This is an independent task replication, not a pooling of RTE and MRPC examples. Report per-seed values and do not tune hyperparameters on the MRPC validation set.
+
+The parent runner now persists the 50 individual per-layer gradient scores in addition to their arithmetic mean. scripts/analyze_gradient_temporal.py computes within-window step/window-mean rank concordance, adjacent-step ranking stability, early/late profile similarity and per-layer gradient coefficient of variation. This temporal analysis is only estimable for artifacts created by the updated runner; historical RTE artifacts cannot be retroactively populated.
+
+## Second model scale: DeBERTa-v3-large / GLUE RTE
+
+The large-model replication keeps the task and V1 allocation/training protocol fixed while changing the base model to microsoft/deberta-v3-large. The experiment config pins a model Hub revision and specifies 24 Transformer layers. The model configuration reports 24 layers and hidden size 1024 (see the upstream model card/config); the large-model run is gated by a numerical MPS preflight. If that preflight passes, run the same three seeds, then the same parent-versus-three-policy matched-budget comparison.
+
+The exporter, parent validator and mechanism analyzer now derive layer count and rank bounds from the selected config. Keep large-model data and aggregate outputs separate from the base-model RTE results. Exact commands and resource fallbacks are in docs/phase1_experiment_roadmap.md.
