@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import math
 import re
-from collections import defaultdict
 from collections.abc import Iterable
 from typing import Any
 
@@ -33,7 +32,7 @@ def collect_lora_layer_gradient_norms(
     Missing gradients are skipped; this should be called at a consistent optimizer
     boundary with the same model/module set on every captured step.
     """
-    squared_norms: dict[int, float] = defaultdict(float)
+    squared_norms: dict[int, float] = {}
 
     for name, parameter in named_parameters:
         if not _LORA_FACTOR_PATTERN.search(name):
@@ -45,7 +44,7 @@ def collect_lora_layer_gradient_norms(
         if not torch.isfinite(grad).all():
             raise ValueError(f"Non-finite LoRA gradient found in {name}.")
         norm = float(torch.linalg.vector_norm(grad.float()).item())
-        squared_norms[layer_id] += norm * norm
+        squared_norms[layer_id] = squared_norms.get(layer_id, 0.0) + norm * norm
 
     return {
         layer_id: math.sqrt(value)
