@@ -357,3 +357,23 @@ The student supplied a deeper Hugging Face cache inspection:
 - The student saw a 371 MB `model.safetensors` download during the seed-42 training session. The three parent reload validations subsequently reproduced validation loss, accuracy and macro-F1 exactly under the then-current `main` cache resolution, which is evidence of equivalent functional base weights but is not a per-run immutable revision attestation.
 
 **Next provenance check:** compare tensor contents of `pytorch_model.bin` at 8ccc with `model.safetensors` at de19 (keys, shapes, dtype-normalized tensor equality/max absolute difference), and fetch/compare the config file at de19 if available. If every model tensor is identical and relevant config/tokenizer assets match, use the 8ccc revision as the pinned coherent revision for subsequent fresh loads and explicitly state that the historical run revision field was not captured, while noting exact reload equivalence and weight-content identity evidence. If tensors differ, do not proceed with a matched-base comparison using these historical parent adapters.
+
+
+## 15 November 2026 — DeBERTa snapshot content equivalence verified
+
+The student completed the requested direct comparison of the two cached Hugging Face snapshot weight files and configs:
+- PyTorch checkpoint at `8ccc9b6f36199bec6961081d44eb72fb3f7353f3`: 210 tensors.
+- Safetensors checkpoint at `de19fe7db5162df5f3d8f0b41321c0267288fd74`: 210 tensors.
+- Common tensors: 210; shape mismatches: 0.
+- Exactly equal tensors after loading: 210/210.
+- Maximum absolute difference: 0.0.
+- Config SHA-256 for both snapshots: `649f6a1ec33c6bdd9a648d6c66019d461139e54957073eafe9bbc2d34c75b0b`; config files are byte-identical.
+
+**Interpretation:** the two cached commits contain exactly the same model tensor values and config content, resolving the earlier partial-snapshot ambiguity for the base-model contents. This is strong evidence that reloading the historical parent adapters against the pinned `8ccc9...` base is content-matched to the `de19...` weights observed in the training cache. However, all three historical run metadata files recorded `base_model_revision = null`; no per-run immutable revision attestation exists. Preserve this caveat in Phase 1 reporting and do not retroactively fill the historical metadata with an inferred SHA.
+
+**Repository updates committed:**
+- Pinned `configs/v1_deberta_rte.json` to revision `8ccc9b6f36199bec6961081d44eb72fb3f7353f3`.
+- Updated future parent-run metadata to fall back to the configured pinned revision if Transformers omits `config._commit_hash`.
+- Added the verified tensor/config comparison and historical provenance limitation to the experiment protocol.
+
+**Next gate:** student pulls the updated main branch, reruns Ruff and pytest, then executes only the seed-42 pruning comparison. Do not run seeds 123 and 999 until seed 42 export/reload, physical rank, preserved scaling, and metric-evaluation checks pass.
