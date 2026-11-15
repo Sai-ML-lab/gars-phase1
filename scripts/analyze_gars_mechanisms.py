@@ -51,22 +51,6 @@ def _layer_means(
     return {str(layer): _mean(values) for layer, values in sorted(grouped.items())}
 
 
-def _paired_rho(
-    left: dict[str, float],
-    right: dict[str, float],
-) -> dict[str, Any]:
-    if set(left) != set(right):
-        raise ValueError("Paired profile keys differ.")
-    keys = sorted(left, key=lambda key: int(key) if key.isdigit() else key)
-    return {
-        "n": len(keys),
-        "spearman_rho": spearman_rank_correlation(
-            [left[key] for key in keys],
-            [right[key] for key in keys],
-        ),
-    }
-
-
 def _profile_stats(
     correlations: list[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -258,9 +242,6 @@ def build_mechanism_report(
     gradient_profiles = {
         str(seed): artifacts[seed]["gradient_by_layer"] for seed in seeds
     }
-    normalized_gradient_profiles = {
-        str(seed): artifacts[seed]["normalized_gradient_by_layer"] for seed in seeds
-    }
     entropy_module_profiles = {
         str(seed): artifacts[seed]["entropy_by_module"] for seed in seeds
     }
@@ -284,7 +265,6 @@ def build_mechanism_report(
     }
 
     gradient_rank_corr = pairwise_profile_correlations(gradient_profiles)
-    normalized_gradient_corr = pairwise_profile_correlations(normalized_gradient_profiles)
     entropy_module_corr = pairwise_profile_correlations(entropy_module_profiles)
     entropy_layer_corr = pairwise_profile_correlations(entropy_layer_profiles)
     rank_module_corr = {
@@ -466,7 +446,48 @@ def build_mechanism_report(
         },
         "cross_seed_gradient_rank_reliability": {
             "raw_gradient_magnitude_profiles": _profile_stats(gradient_rank_corr),
-            "mean_normalized_gradient_profiles": _profile_stats(normalized_gradient_corr),
+            "relative_importance_by_layer": {
+                layer: {
+                    "normalized_importance_by_seed": {
+                        str(seed): artifacts[seed]["normalized_gradient_by_layer"][layer]
+                        for seed in seeds
+                    },
+                    **descriptive_stats(
+                        [
+                            artifacts[seed]["normalized_gradient_by_layer"][layer]
+                            for seed in seeds
+                        ]
+                    ),
+                    "coefficient_of_variation": (
+                        descriptive_stats(
+                            [
+                                artifacts[seed]["normalized_gradient_by_layer"][layer]
+                                for seed in seeds
+                            ]
+                        )["sample_std"]
+                        / descriptive_stats(
+                            [
+                                artifacts[seed]["normalized_gradient_by_layer"][layer]
+                                for seed in seeds
+                            ]
+                        )["mean"]
+                        if descriptive_stats(
+                            [
+                                artifacts[seed]["normalized_gradient_by_layer"][layer]
+                                for seed in seeds
+                            ]
+                        )["sample_std"] is not None
+                        and descriptive_stats(
+                            [
+                                artifacts[seed]["normalized_gradient_by_layer"][layer]
+                                for seed in seeds
+                            ]
+                        )["mean"] != 0
+                        else None
+                    ),
+                }
+                for layer in sorted(artifacts[seeds[0]]["normalized_gradient_by_layer"], key=int)
+            },
         },
         "cross_seed_spectral_profile_stability": {
             "per_module_entropy_profiles": _profile_stats(entropy_module_corr),
