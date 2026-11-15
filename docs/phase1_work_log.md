@@ -70,3 +70,21 @@ The student reports that the corrected checks now pass on the experiment Mac:
 This clears the implementation quality gate for the first controlled parent-adapter run. No training result is claimed yet.
 
 **Next action:** capture the clean working-tree state and current Git revision, then run only seed 42 using the V1 DeBERTa-v3-base / GLUE RTE config. Inspect the run metadata, all 50 gradient-capture steps, validation metrics, and saved adapter before attempting seeds 123 and 999.
+
+
+## 15 November 2026 — seed 42 numerical failure and diagnostic hardening
+
+The first seed-42 parent run did not complete and is invalid for research reporting:
+- The reported epoch-1 and epoch-2 training-loss means were `NaN`.
+- Validation accuracy remained 0.52708 and macro-F1 0.34515 in both reported epochs.
+- The run later stopped when the gradient-importance collector detected a non-finite LoRA gradient.
+- No completed parent adapter, final metadata or valid gradient profile was produced. Do not use the displayed validation metrics as a trained-parent result.
+
+The user also saw generic Hugging Face `UNEXPECTED` / `MISSING` checkpoint-loading notes, but did not include the actual parameter names. These cannot yet be classified. Task-head parameters may be expected to be newly initialized when loading a base pretraining checkpoint for sequence classification; the exact lists need inspection.
+
+**Debugging changes committed:**
+- Added `scripts/diagnose_deberta_rte.py`, a short preflight that reports exact checkpoint loading keys and tests base-model forward, PEFT forward, first backward, gradient finiteness and a small number of optimizer updates on the selected device.
+- Hardened the parent runner to fail at the first non-finite logits/loss and to reject non-finite gradients during gradient clipping.
+- The parent runner now writes each completed epoch to `training_log.jsonl` immediately, so an interrupted run retains completed-epoch evidence.
+
+**Next action:** run the diagnostic only, not the full training run. Determine whether the first non-finite value appears in the base-model forward, PEFT forward, backward, or after an optimizer update. Inspect the precise missing/unexpected key lists and package versions before changing the learning rate or device. No hyperparameter has been changed yet.
