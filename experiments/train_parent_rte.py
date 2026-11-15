@@ -285,6 +285,7 @@ def train_seed(
         )
     capture_start_step = total_optimizer_steps - capture_window + 1
     gradient_accumulator = GradientImportanceAccumulator()
+    stepwise_gradient_scores: list[dict[str, Any]] = []
 
     seed_dir = output_root / f"seed_{seed}"
     adapter_dir = seed_dir / "parent_adapter"
@@ -339,7 +340,16 @@ def train_seed(
 
             global_step += 1
             if global_step >= capture_start_step:
-                gradient_accumulator.update(model.named_parameters())
+                step_scores = gradient_accumulator.update(model.named_parameters())
+                stepwise_gradient_scores.append(
+                    {
+                        "optimizer_step": global_step,
+                        "importance_by_transformer_block": {
+                            str(layer_id): score
+                            for layer_id, score in step_scores.items()
+                        },
+                    }
+                )
 
             torch.nn.utils.clip_grad_norm_(
                 trainable_parameters,
@@ -410,6 +420,7 @@ def train_seed(
             "importance_by_transformer_block": {
                 str(layer_id): score for layer_id, score in gradient_scores.items()
             },
+            "stepwise_importance_by_optimizer_step": stepwise_gradient_scores,
             "accumulator_state": gradient_accumulator.state_dict(),
         },
     )
