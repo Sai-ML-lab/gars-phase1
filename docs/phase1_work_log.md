@@ -502,3 +502,28 @@ Observed descriptive results:
 **Interpretation caution:** the strong gradient/entropy and entropy/rank associations could be confounded by Transformer depth. Gradient magnitudes and spectral structure may both change systematically from early to late blocks. A raw cross-layer Spearman correlation cannot distinguish a depth trend from a direct relationship. The first analysis was therefore treated as exploratory, not causal or mechanistic proof.
 
 **Depth-control diagnostic added:** `partial_spearman_rank_correlation` now residualizes ranked variables against ranked layer index before correlating. The analysis script additionally reports per-seed partial correlations for gradient/entropy, gradient/GARS rank, gradient/GARS-minus-uniform rank uplift, and entropy/GARS rank; layer-depth trends; and the count of GARS thresholds clipped at 0.80 or 0.99. These are descriptive sensitivity diagnostics, not causal adjustment or significance tests. Unit/integration tests were added. The student's next local run must pass Ruff and pytest before regenerating the mechanism report.
+
+
+## 15 November 2026 — depth-adjusted mechanism results reviewed
+
+The student supplied the second mechanism-analysis output, including partial Spearman correlations that control for ranked Transformer layer depth.
+
+Cross-seed reliability:
+- Final-window block-gradient ranking: mean pairwise rho 0.9580 (SD 0.0140; n=3 seed pairs, 12 layers per pair).
+- Layer-mean squared-spectral-entropy ranking: 0.9324 (SD 0.0265; n=3 pairs, 12 layers).
+- Module entropy ranking: 0.8330 (SD 0.0370; n=3 pairs, 24 modules).
+- Module retained-rank allocation stability: GARS 0.8288 (SD 0.1090), uniform 0.9320 (SD 0.0127), global singular-value 0.9525 (SD 0.0026), each across 3 seed pairs and 24 modules.
+
+Mean within-seed raw versus depth-adjusted partial Spearman correlations across the three seeds:
+- Gradient importance vs layer-mean spectral entropy: -0.9394 raw; -0.5958 after depth adjustment.
+- Gradient importance vs GARS layer-mean rank: +0.0233 raw; +0.2090 depth-adjusted.
+- Gradient importance vs GARS-minus-uniform layer-mean rank: +0.7176 raw; +0.3622 depth-adjusted.
+- Layer-mean spectral entropy vs GARS layer-mean rank: +0.0375 raw; -0.0226 depth-adjusted.
+
+**Interpretation:** the gradient/spectral-entropy association is attenuated but not eliminated after controlling for layer-depth ordering in this 12-layer descriptive analysis. The gradient association with GARS's rank uplift over uniform energy also attenuates substantially. The entropy/GARS-rank association is effectively null after depth adjustment. These calculations are sensitivity diagnostics, not causal effects or p-values; a three-seed average over 12 layers is not inferential evidence.
+
+The result is compatible with the hypothesis that gradient and spectral concentration contain related information beyond a simple monotonic depth trend, while also showing that the allocation shift is jointly determined by spectra and discrete matched-budget calibration. It does not prove that the gradient term causes better validation performance.
+
+**GARS threshold clipping detail:** the terminal output supplied did not include the per-seed threshold-clipping counts or per-seed layer-depth trend objects even though the JSON report stores those fields. These are still to be inspected from the local `mechanism_analysis.json` before drawing a conclusion about how often tau bounds are active.
+
+**Next research design:** decide whether the next scarce experiment should measure within-window gradient dynamics or run an explicit signal ablation. The former requires a new instrumented parent-training run because the current 50 per-step values were not persisted. A clean signal ablation can instead compare the current gradient scores against a layer-neutral/constant signal while keeping the same base parent spectra and matched budget; it must be implemented and evaluated as a distinct policy, not silently folded into V1. First extract the per-seed partial correlations and threshold clipping data from the saved JSON, then choose the smallest useful next experiment.
