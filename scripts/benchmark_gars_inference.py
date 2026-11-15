@@ -392,6 +392,11 @@ def main() -> None:
     parser.add_argument("--merge-tolerance", type=float, default=1e-4)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume an existing partial report with exactly matching benchmark settings.",
+    )
     args = parser.parse_args()
 
     if not args.seeds or len(set(args.seeds)) != len(args.seeds):
@@ -408,13 +413,17 @@ def main() -> None:
         raise ValueError("Require warmup_steps >= 0 and timed_steps >= 2.")
     if args.merge_tolerance <= 0:
         raise ValueError("merge-tolerance must be positive.")
-    if args.output.exists() and not args.overwrite:
-        raise FileExistsError(
-            f"Output already exists: {args.output}. Use --overwrite to replace it."
-        )
+    if args.resume and args.overwrite:
+        raise ValueError("Use only one of --resume or --overwrite.")
 
     config = _read_json(args.config)
     device = _device(args.device)
+    if args.resume and not args.output.is_file():
+        raise FileNotFoundError(f"Cannot resume; benchmark report does not exist: {args.output}")
+    if args.output.exists() and not (args.overwrite or args.resume):
+        raise FileExistsError(
+            f"Output already exists: {args.output}. Use --resume or --overwrite."
+        )
     tokenizer = AutoTokenizer.from_pretrained(
         args.parent_root / f"seed_{args.seeds[0]}" / "parent_adapter",
         use_fast=True,
@@ -431,6 +440,8 @@ def main() -> None:
         "base_model": config["model"]["id"],
         "base_model_revision": config["model"]["revision"],
         "dataset": config["dataset"],
+        "seeds": args.seeds,
+        "variants": args.variants,
         "device": str(device),
         "python_version": platform.python_version(),
         "package_versions": {
@@ -446,9 +457,10 @@ def main() -> None:
             "validation_subset": "first sample_count examples in official validation order",
             "drop_last": True,
             "requested_sample_count": args.sample_count,
-        "effective_examples_by_batch_size": {
-            str(size): len(batches_by_size[size]) * size for size in args.batch_sizes
-        },
+            "effective_examples_by_batch_size": {
+                str(size): len(batches_by_size[size]) * size
+                for size in args.batch_sizes
+            },
             "warmup_steps_per_condition": args.warmup_steps,
             "timed_steps_per_condition": args.timed_steps,
             "merge_equivalence_tolerance": args.merge_tolerance,
@@ -462,12 +474,36 @@ def main() -> None:
         "expected_conditions": len(args.seeds) * len(args.variants),
         "all_requested_conditions_completed": False,
     }
-    if args.output.exists() and args.overwrite:
-        args.output.unlink()
-    _write_json(args.output, report)
+    if args.resume:
+        existing = _read_json(args.output)
+        expected_design = report["design"]
+        if (
+            existing.get("experiment_name") != report["experiment_name"]
+            or existing.get("base_model_revision") != report["base_model_revision"]
+            or existing.get("seeds") != args.seeds
+            or existing.get("variants") != args.variants
+            or existing.get("device") != str(device)
+            or existing.get("design") != expected_design
+            or existing.get("expected_conditions") != report["expected_conditions"]
+        ):
+            raise ValueError(
+                "Existing benchmark report does not match the requested resume settings."
+            )
+        report = existing
+    else:
+        if args.output.exists() and args.overwrite:
+            args.output.unlink()
+        _write_json(args.output, report)
 
+    completed_keys = {
+        (int(item["seed"]), str(item["variant"]))
+        for item in report.get("results", [])
+    }
     for seed in args.seeds:
         for variant in args.variants:
+            if (seed, variant) in completed_keys:
+                print(f"Skipping completed seed={seed}, variant={variant}")
+                continue
             adapter_dir = _adapter_directory(
                 variant,
                 seed,
