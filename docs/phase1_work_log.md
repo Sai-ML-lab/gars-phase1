@@ -59,3 +59,14 @@ The student ran `python -m pytest -q` on the experiment Mac. The first run repor
 An isolated float64 numerical check of the QR-SVD test case confirmed a maximum leading-spectrum difference of approximately (1.25\times10^{-14}), trailing dense singular values below (3.2\times10^{-15}), and reconstruction error below (8.5\times10^{-15}). This is a targeted numerical sanity check, not a full test-suite rerun.
 
 **Verification still required:** the corrected test suite and Ruff have not yet been rerun on the student's Mac. Do not start the parent-adapter training run until both checks pass.
+
+
+## 15 November 2026 — local quality gates passed
+
+The student reports that the corrected checks now pass on the experiment Mac:
+- `ruff check src/gars tests experiments/train_parent_rte.py`: passed with no findings.
+- `python -m pytest -q`: all 21 tests passed.
+
+This clears the implementation quality gate for the first controlled parent-adapter run. No training result is claimed yet.
+
+**Next action:** capture the clean working-tree state and current Git revision, then run only seed 42 using the V1 DeBERTa-v3-base / GLUE RTE config. Inspect the run metadata, all 50 gradient-capture steps, validation metrics, and saved adapter before attempting seeds 123 and 999.
