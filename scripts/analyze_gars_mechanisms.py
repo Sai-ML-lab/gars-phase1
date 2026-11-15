@@ -150,9 +150,13 @@ def _load_seed_artifacts(
         str(int(layer)): int(count)
         for layer, count in accumulator.get("count_by_layer", {}).items()
     }
-    if counts and (set(counts) != set(gradients) or set(counts.values()) != {50}):
+    if counts and (
+        set(counts) != set(gradients)
+        or set(counts.values()) != {expected_capture_steps}
+    ):
         raise ValueError(
-            f"Seed {seed}: accumulator per-layer counts are inconsistent with 50 updates."
+            f"Seed {seed}: accumulator per-layer counts are inconsistent with "
+            f"{expected_capture_steps} updates."
         )
 
     methods: dict[str, Any] = {}
