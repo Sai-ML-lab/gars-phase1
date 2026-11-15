@@ -88,3 +88,18 @@ The user also saw generic Hugging Face `UNEXPECTED` / `MISSING` checkpoint-loadi
 - The parent runner now writes each completed epoch to `training_log.jsonl` immediately, so an interrupted run retains completed-epoch evidence.
 
 **Next action:** run the diagnostic only, not the full training run. Determine whether the first non-finite value appears in the base-model forward, PEFT forward, backward, or after an optimizer update. Inspect the precise missing/unexpected key lists and package versions before changing the learning rate or device. No hyperparameter has been changed yet.
+
+
+## 15 November 2026 — diagnostic loading-report serialization fix
+
+The first attempt to run `scripts/diagnose_deberta_rte.py` on both MPS and CPU stopped before the base-model forward pass. Transformers returned one or more loading-info collections as sets, and the diagnostic attempted to pass them directly to `json.dumps`. This was a diagnostic-script defect, not a model numerical failure.
+
+The loading report itself showed:
+- Unexpected pretraining-head keys under `lm_predictions.lm_head` and `mask_predictions`.
+- Missing `classifier.weight`, `classifier.bias`, and `pooler.dense` weights.
+
+These key groups are consistent with loading the DeBERTa-v3-base pretraining checkpoint into a sequence-classification architecture: pretraining-only heads are unused, while downstream classifier/pooler parameters are initialized for the task. The task head still needs to be trained on RTE. No backbone parameter mismatch was shown in the supplied report.
+
+**Correction committed:** diagnostic now converts each loading-info collection to a sorted list of strings before JSON serialization.
+
+**Still unknown:** the numerical root cause of the NaN loss. Neither device diagnostic reached a forward pass, so no conclusion about MPS versus CPU stability can yet be drawn.
