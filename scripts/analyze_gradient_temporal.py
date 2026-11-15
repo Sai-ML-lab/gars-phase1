@@ -9,7 +9,11 @@ from typing import Any
 
 import numpy as np
 
-from gars.diagnostics import descriptive_stats, spearman_rank_correlation
+from gars.diagnostics import (
+    descriptive_stats,
+    pairwise_profile_correlations,
+    spearman_rank_correlation,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SEEDS = (42, 123, 999)
@@ -31,7 +35,10 @@ def _rank_descending(values: np.ndarray) -> np.ndarray:
     return ranks
 
 
-def _load_step_matrix(path: Path, expected_steps: int | None) -> tuple[list[int], list[int], np.ndarray]:
+def _load_step_matrix(
+    path: Path,
+    expected_steps: int | None,
+) -> tuple[list[int], list[int], np.ndarray]:
     artifact = _read_json(path)
     step_records = artifact.get("stepwise_importance_by_optimizer_step")
     if not isinstance(step_records, list) or not step_records:
@@ -63,7 +70,10 @@ def _load_step_matrix(path: Path, expected_steps: int | None) -> tuple[list[int]
         optimizer_steps.append(step)
         rows.append([importance[layer] for layer in layer_ids])
 
-    if optimizer_steps != sorted(optimizer_steps) or len(set(optimizer_steps)) != len(optimizer_steps):
+    if (
+        optimizer_steps != sorted(optimizer_steps)
+        or len(set(optimizer_steps)) != len(optimizer_steps)
+    ):
         raise ValueError(f"Optimizer-step IDs are duplicated or unsorted in {path}.")
     if not layer_ids:
         raise ValueError(f"No layer IDs found in {path}.")
@@ -199,8 +209,6 @@ def main() -> None:
         seed: values["stepwise_normalized_mean_profile"]
         for seed, values in per_seed.items()
     }
-    from gars.diagnostics import pairwise_profile_correlations
-
     cross_seed = pairwise_profile_correlations(normalized_profiles)
     cross_seed_rhos = [
         float(item["spearman_rho"])
@@ -214,7 +222,9 @@ def main() -> None:
         "design": {
             "capture": "final optimizer updates; joint per-block LoRA A/B gradient Frobenius norm",
             "step_aggregation": "arithmetic mean of step-level scores",
-            "adjacent_rank_stability": "Spearman correlation of consecutive optimizer-step layer rankings",
+            "adjacent_rank_stability": (
+                "Spearman correlation of consecutive optimizer-step layer rankings"
+            ),
             "within_layer_cv": "sample standard deviation divided by mean over captured updates",
             "temporal_claim_boundary": (
                 "Descriptive stability of the captured final window only; does not "
