@@ -20,6 +20,9 @@ SEEDS_DEFAULT = (42, 123, 999)
 METHODS = ("gars", "global_singular_value", "uniform_local_energy")
 
 
+EXPECTED_BASE_REVISION = "8ccc9b6f36199bec6961081d44eb72fb3f7353f3"
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     if not path.is_file():
         raise FileNotFoundError(f"Required experiment artifact is missing: {path}")
@@ -95,12 +98,12 @@ def _load_seed_artifacts(
     seed: int,
     parent_root: Path,
     pruned_root: Path,
-    expected_revision: str,
-    expected_layers: int,
-    expected_modules: int,
-    expected_capture_steps: int,
-    min_rank: int,
-    max_rank: int,
+    expected_revision: str = EXPECTED_BASE_REVISION,
+    expected_layers: int = 12,
+    expected_modules: int = 24,
+    expected_capture_steps: int = 50,
+    min_rank: int = 2,
+    max_rank: int = 32,
 ) -> dict[str, Any]:
     seed_dir = parent_root / f"seed_{seed}"
     gradient_data = _read_json(seed_dir / "gradient_importance.json")
@@ -287,9 +290,11 @@ def _load_seed_artifacts(
 def build_mechanism_report(
     seeds: list[int],
     artifacts: dict[int, dict[str, Any]],
-    base_model_revision: str,
-    expected_capture_steps: int,
+    base_model_revision: str | None = None,
+    expected_capture_steps: int = 50,
 ) -> dict[str, Any]:
+    if base_model_revision is None:
+        base_model_revision = artifacts[seeds[0]]["base_model_revision"]
     gradient_profiles = {
         str(seed): artifacts[seed]["gradient_by_layer"] for seed in seeds
     }
