@@ -174,7 +174,10 @@ def main() -> None:
     loaded_dtypes = {parameter.dtype for parameter in base_model.parameters()}
     print("Loaded parameter dtypes:", sorted(str(dtype) for dtype in loaded_dtypes))
     if loaded_dtypes != {torch.float32}:
-        raise RuntimeError(f"Expected all base-model parameters to be float32, got {loaded_dtypes}.")
+        raise RuntimeError(
+            "Expected all base-model parameters to be float32, "
+            f"got {loaded_dtypes}."
+        )
     base_model.to(device)
     base_model.train()
     inputs, labels = _model_batch(first_batch, device)
@@ -230,6 +233,7 @@ def main() -> None:
         [parameter for _, parameter in trainable],
         lr=float(training_cfg["learning_rate"]),
         weight_decay=float(training_cfg["weight_decay"]),
+        eps=float(training_cfg.get("adam_epsilon", 1e-8)),
     )
     optimizer.zero_grad(set_to_none=True)
     outputs.loss.backward()
