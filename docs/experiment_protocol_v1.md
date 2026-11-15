@@ -78,3 +78,12 @@ Target compressed budget: 60% of the parent A/B factor-parameter count. Record t
 ## Statistical interpretation
 
 For each policy, report the three seed-level observations, mean and standard deviation. With only three seeds, confidence intervals and significance tests have low power. Treat this as a Phase 1 pilot; do not claim strong statistical significance from a tiny seed count. Pair methods by the same parent-training seed.
+
+
+## Physical export validation
+
+The post-hoc exporter creates three physical adapter variants from each common parent: `uniform_local_energy`, `global_singular_value`, and `gars`. It retains classifier/pooler `modules_to_save` tensors and tokenizer files, while replacing each LoRA A/B tensor with its rank-k SVD factors.
+
+The target remains 60% of the parent LoRA A/B factor count. Every method records its realized physical count, budget error, per-module ranks, retained squared-energy fraction, spectral entropy, weight-file bytes and validation metrics. Integer ranks can make exact matching impossible; report actual counts rather than describing them as exact matches.
+
+The export adjusts each module's PEFT `alpha_pattern` so the original LoRA multiplier is unchanged after rank reduction. Before metrics are reported, reload the adapter on a fresh FP32 base, verify every instantiated A/B rank and runtime scaling multiplier, and evaluate the same RTE validation examples. The parent model weights must be pinned to an immutable Hugging Face commit SHA for this comparison; a floating `main` revision is not acceptable for a final reproducibility claim.
