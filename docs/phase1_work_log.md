@@ -33,3 +33,15 @@ Use this file to record the work actually completed. Add dates, code revisions, 
 6. Implement and validate the post-hoc allocation/export/reload pipeline before reporting any compression result.
 
 **Primary code revision:** inspect the repository's current main branch and record the exact commit hash used by each run in its metadata.
+
+
+## 15 November 2026 — first local Ruff feedback
+
+The student ran Ruff on the local Apple Silicon environment and shared six findings. All six were addressed in the repository:
+- Removed the shebang from the parent runner because it is invoked as `python experiments/train_parent_rte.py`, not as an executable.
+- Removed the unused E402 suppression.
+- Removed an unnecessary integer cast around `len(references)`.
+- Simplified/reordered standard-library imports in the gradient-importance and policy modules.
+- Marked the unused dense-SVD right-singular-vector variable as intentionally unused.
+
+The Ruff check itself has not yet been rerun after the fixes, and pytest has not yet been executed. Record the rerun results here once supplied by the student.
