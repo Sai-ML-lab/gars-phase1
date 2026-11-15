@@ -91,7 +91,7 @@ def _prepare_datasets(config: dict[str, Any], tokenizer: Any):
             truncation=True,
             max_length=int(dataset_cfg.get("max_length", 256)),
         )
-        encoded["labels"] = batch["label"]
+        encoded["label"] = batch["label"]
         return encoded
 
     train = train_raw.map(
