@@ -13,7 +13,6 @@ import json
 import math
 import re
 import shutil
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +31,6 @@ from transformers import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from gars.export import alpha_for_preserved_scaling, peft_module_pattern_key
 from gars.importance import transformer_layer_index
@@ -85,7 +83,7 @@ def _load_json(path: Path) -> dict[str, Any]:
         raise FileNotFoundError(path)
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
-        raise ValueError(f"Expected a JSON object in {path}.")
+        raise TypeError(f"Expected a JSON object in {path}.")
     return value
 
 
@@ -111,8 +109,8 @@ def _factor_inventory(
             raise ValueError(
                 f"Incomplete LoRA factors for {module_name}: found {sorted(factors)}."
             )
-        _a_key, a_tensor = factors["A"]
-        _b_key, b_tensor = factors["B"]
+        a_key, a_tensor = factors["A"]
+        b_key, b_tensor = factors["B"]
         if a_tensor.ndim != 2 or b_tensor.ndim != 2:
             raise ValueError(f"LoRA factors must be matrices for {module_name}.")
         if a_tensor.shape[0] != b_tensor.shape[1]:
@@ -635,7 +633,7 @@ def main() -> None:
         )
 
     target_fraction = float(config["gars"]["target_parameter_fraction"])
-    target_parameters = int(round(parent_factor_parameters * target_fraction))
+    target_parameters = round(parent_factor_parameters * target_fraction)
     allocations = _make_policy_allocations(
         spectra,
         importance,
@@ -760,10 +758,7 @@ def main() -> None:
 
         del model, base_model
         if device.type == "mps":
-            try:
-                torch.mps.empty_cache()
-            except Exception:
-                pass
+            torch.mps.empty_cache()
 
     comparison = {
         "seed": args.seed,
