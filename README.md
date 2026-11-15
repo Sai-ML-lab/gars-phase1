@@ -92,3 +92,50 @@ src/gars/      Reusable GARS implementation
    adapter tensors. Validate physically truncated export and actual inference.
 6. Keep the sum-of-singular-values criterion distinct from the squared
    singular-value (Frobenius-energy) criterion.
+
+
+## 5. GARS V1 core and unit tests
+
+The first implementation slice now contains:
+- reduced QR-SVD for a LoRA update B @ A;
+- squared-singular-value energy retention and normalized squared spectral entropy;
+- physical A/B factor truncation;
+- joint per-Transformer-block LoRA A/B gradient capture;
+- GARS, uniform-local-energy and global singular-value budget calibrators;
+- unit tests for the above functions.
+
+Install the updated package and run:
+
+```bash
+python -m pip install -e ".[dev]"
+ruff check src/gars tests
+python -m pytest -q
+```
+
+## 6. First controlled parent-adapter run
+
+The approved V1 pilot is DeBERTa-v3-base on GLUE RTE. The exact working definitions and protocol are in:
+- docs/gars_v1_method_spec.md
+- docs/experiment_protocol_v1.md
+- configs/v1_deberta_rte.json
+
+The parent runner trains unpruned LoRA and records the final 50 optimizer-step gradient window. It does not prune during training.
+
+Start with one seed after the unit tests pass:
+
+```bash
+python experiments/train_parent_rte.py \
+  --config configs/v1_deberta_rte.json \
+  --seed 42 \
+  --device mps
+```
+
+Run all three configured seeds only after the first seed completes and its artifacts are inspected:
+
+```bash
+python experiments/train_parent_rte.py \
+  --config configs/v1_deberta_rte.json \
+  --device mps
+```
+
+Adapter weight files are ignored by Git; keep them locally or on the experiment machine. Commit the small metadata/JSON results and logs, but never commit model weights or credentials. This runner creates the common parent checkpoint; post-hoc pruning/export and reload validation are the next implementation stage.
