@@ -1,4 +1,5 @@
 """Gradient-importance collection for standard PEFT LoRA factors."""
+
 from __future__ import annotations
 
 import math
@@ -61,8 +62,8 @@ class GradientImportanceAccumulator:
     """
 
     def __init__(self) -> None:
-        self._sum_by_layer: dict[int, float] = defaultdict(float)
-        self._count_by_layer: dict[int, int] = defaultdict(int)
+        self._sum_by_layer: dict[int, float] = {}
+        self._count_by_layer: dict[int, int] = {}
         self.steps_seen = 0
 
     def update(
@@ -75,8 +76,8 @@ class GradientImportanceAccumulator:
             raise ValueError("No LoRA A/B gradients were found in this capture step.")
         self.steps_seen += 1
         for layer_id, score in step_scores.items():
-            self._sum_by_layer[layer_id] += score
-            self._count_by_layer[layer_id] += 1
+            self._sum_by_layer[layer_id] = self._sum_by_layer.get(layer_id, 0.0) + score
+            self._count_by_layer[layer_id] = self._count_by_layer.get(layer_id, 0) + 1
         return step_scores
 
     def mean_scores(self) -> dict[int, float]:
