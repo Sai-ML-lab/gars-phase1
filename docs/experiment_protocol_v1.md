@@ -102,3 +102,57 @@ A direct local comparison established:
 This establishes identical model-weight and model-config contents across the two cached snapshots. It does **not** establish a cryptographic per-run record of which commit each of the three completed parent-training processes resolved, because their historical `base_model_revision` metadata fields were null. The parent runs are retained with this limitation disclosed; do not rewrite their historical metadata or claim that the immutable commit was recorded at training time. For subsequent pruning reloads, use the pinned `8ccc9...` revision, whose model weights/config were shown to be identical to the `de19...` snapshot that held the safetensors file observed during training.
 
 The parent-training runner now falls back to the configured revision when Transformers does not populate `config._commit_hash`, so future metadata records the pinned config revision rather than null.
+
+
+## Gradient-signal reliability and spectral-concentration mechanism analysis
+
+After all three seed-level pruning comparisons complete, run `scripts/analyze_gradient_spectral_mechanism.py`. The analysis consumes the already-saved parent `gradient_importance.json` files and the three policy `allocation.json` files per seed. It does not retrain models or recompute SVDs.
+
+### A. Gradient-signal reliability across seeds
+
+For each seed, normalize its 12 block-level gradient scores by that seed's mean score:
+
+[
+\tilde g_l^{(s)} = \frac{g_l^{(s)}}{\frac{1}{L}\sum_j g_j^{(s)}}.
+]
+
+This removes seed-wide magnitude differences while preserving relative block importance. Compare:
+- pairwise Spearman and Kendall rank correlations of the normalized 12-dimensional scores across seeds;
+- pairwise correlations of the corresponding layer-importance rank positions;
+- per-block mean and sample standard deviation of normalized importance and rank across seeds.
+
+A score of 1.0 in the normalized representation is the within-seed average block importance. If every block score is zero, use the neutral value 1.0 for each block, consistent with the V1 threshold-policy fallback.
+
+### B. Gradient importance versus spectral concentration
+
+For every adapted projection, use the saved normalized squared-spectral entropy:
+
+[
+H_{\mathrm{sq}}=-\frac{1}{\log r}\sum_i p_i\log(p_i+\epsilon),
+\qquad p_i=\frac{\sigma_i^2}{\sum_j\sigma_j^2}.
+]
+
+Average the two target-projection entropy values within each Transformer block, yielding 12 block-level entropy observations per seed. Compute descriptive Pearson, Spearman and Kendall coefficients between block gradient importance and mean block entropy separately for each seed. Do not pool all 36 block/seed rows as if they were independent observations.
+
+Also compute module-level entropy-versus-retained-rank correlations for each policy. These describe how spectral concentration relates to the rank actually selected by each rule; they are not a causal test of optimal rank.
+
+### C. Rank-allocation stability
+
+Compare the 24 per-module retained ranks across seed pairs for each policy. Report correlations, exact-rank agreement, mean absolute rank difference and maximum absolute rank difference. Repeat at block level using the mean of the query/value ranks per block. Report per-block mean and sample standard deviation of retained rank across seeds.
+
+GARS rank-versus-gradient correlations are policy-coupled by construction because gradient importance is an input to GARS thresholds. They should be treated as allocation diagnostics, not independent validation that gradient scores identify the optimal rank.
+
+### Statistical boundaries
+
+All correlations are descriptive. Each within-seed relationship uses only 12 blocks or 24 projection modules; the cross-seed reliability comparison has only three seeds. The script intentionally emits no p-values and supports no significance claim. The analysis is a mechanism diagnostic for the DeBERTa-v3-base/RTE pilot, not evidence of generality across model scales or tasks.
+
+### Execution and output
+
+Run after the local quality gates pass:
+
+```bash
+python scripts/analyze_gradient_spectral_mechanism.py \
+  --output results/v1_pruned/mechanism_analysis.json
+```
+
+The output includes seed-level gradient scores/ranks, threshold-bound counts, gradient/entropy correlations, policy-specific rank diagnostics, pairwise cross-seed rank stability, per-block summaries, and interpretation notes. Preserve the generated JSON with the Phase 1 experiment artifacts.
