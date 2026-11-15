@@ -145,3 +145,24 @@ Every seed must save:
 - every policy's threshold/cutoff, per-module retained ranks and physical parameter count;
 - exported adapter tensor shapes, serialized bytes and load/forward validation;
 - the exact Git commit and seed.
+
+
+## 10. Physical export and PEFT scaling preservation
+
+Post-hoc SVD truncation produces physically smaller factor matrices (A'\in\mathbb{R}^{k\times d_{in}}) and (B'\in\mathbb{R}^{d_{out}\times k}). Standard PEFT LoRA applies the multiplier \(\alpha/r\); rank-stabilized LoRA applies \(\alpha/\sqrt r\). Changing rank while leaving alpha unchanged would therefore change the multiplier and confound the pruning comparison.
+
+For standard LoRA, preserve the parent multiplier by setting the pruned module's alpha to:
+
+\[
+\alpha_k=\alpha_0\frac{k}{r_0}.
+\]
+
+For rank-stabilized LoRA:
+
+\[
+\alpha_k=\alpha_0\sqrt{\frac{k}{r_0}}.
+\]
+
+These values are exported through PEFT's per-module `rank_pattern` and `alpha_pattern`. Pattern keys are generated from the underlying model module names (not the `base_model.model.` state-dict wrapper prefix), with dots escaped and without a leading regex anchor to accommodate PEFT's optional-prefix pattern matcher. The reload check must inspect the actual instantiated A/B shapes and the runtime LoRA scaling multiplier for every target module; successful deserialization alone is insufficient.
+
+V1 export is restricted to the standard LoRA configuration used by the parent experiment. DoRA, LoRA bias, QALoRA and fan-in/fan-out variants are rejected pending separate handling.
