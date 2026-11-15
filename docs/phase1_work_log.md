@@ -334,3 +334,26 @@ The student inspected the local Hugging Face cache for `microsoft/deberta-v3-bas
 **Interpretation:** do not assume the parent experiments all used SHA `8ccc9...` just because that is the current `refs/main`. The model-weight file is stored under a different snapshot SHA `de19fe...`. Since the three parent run metadata objects have no immutable `base_model_revision`, the historical checkpoint provenance remains unresolved. The two SHAs may represent successive repo revisions where the large weights remained unchanged, but we need to inspect cached file symlinks/manifest and check whether each SHA resolves the same model weights and config before selecting a pinned revision.
 
 **Next action:** inspect every file/symlink in both snapshot directories, their resolved blob targets and file hashes; query the cache for `config.json` and `model.safetensors` under each explicit commit SHA. Compare model-weight hashes if both revisions are available. Also capture parent adapter and log file mtimes to align them with cache download times if possible. Do not run pruning or bypass `--allow-floating-revision` until this evidence is reviewed.
+
+
+## 15 November 2026 — Ruff findings from full-tree lint and fixes
+
+The student's full-tree Ruff check surfaced 15 findings. Corrections committed:
+- `scripts/check_environment.py`: replaced broad `Exception` handling with `RuntimeError` for device operations; MPS synchronization failures are now recorded rather than silently ignored; the script exit code now considers all failed checks; switched to `datetime.UTC`.
+- `scripts/diagnose_deberta_rte.py`: removed unused `sys`.
+- `scripts/smoke_lora.py`: switched to `datetime.UTC`.
+- `scripts/run_pruning_comparison.py`: removed the runtime `sys.path` mutation (the project is now installed editable on the user's M5 Max), fixed the factor-key local names that had been accidentally renamed despite later use, changed invalid JSON-root type error to `TypeError`, removed a redundant `int(round(...))` cast, and removed an unnecessary swallowed exception around MPS cache clearing.
+- `src/gars/export.py` and `src/gars/importance.py`: corrected import-block spacing.
+- Moved the pruning script's `PROJECT_ROOT` declaration below imports.
+
+The full-tree Ruff check has not been rerun after these changes. The student's earlier 29-test pytest pass remains noted, but rerun both lint and tests after pulling the latest source.
+
+## 15 November 2026 — cache snapshot provenance details
+
+The student supplied a deeper Hugging Face cache inspection:
+- Snapshot `8ccc9b6f36199bec6961081d44eb72fb3f7353f3` contains symlinks for `config.json`, `pytorch_model.bin`, `spm.model`, and `tokenizer_config.json`; the cache's current `refs/main` points to this SHA.
+- Snapshot `de19fe7db5162df5f3d8f0b41321c0267288fd74` contains `model.safetensors` (371,101,258 bytes).
+- Explicit cache lookup confirms that the 8ccc snapshot has `config.json` and `pytorch_model.bin`, but no `model.safetensors`; the de19 snapshot has `model.safetensors`, but no `config.json`.
+- The student saw a 371 MB `model.safetensors` download during the seed-42 training session. The three parent reload validations subsequently reproduced validation loss, accuracy and macro-F1 exactly under the then-current `main` cache resolution, which is evidence of equivalent functional base weights but is not a per-run immutable revision attestation.
+
+**Next provenance check:** compare tensor contents of `pytorch_model.bin` at 8ccc with `model.safetensors` at de19 (keys, shapes, dtype-normalized tensor equality/max absolute difference), and fetch/compare the config file at de19 if available. If every model tensor is identical and relevant config/tokenizer assets match, use the 8ccc revision as the pinned coherent revision for subsequent fresh loads and explicitly state that the historical run revision field was not captured, while noting exact reload equivalence and weight-content identity evidence. If tensors differ, do not proceed with a matched-base comparison using these historical parent adapters.
