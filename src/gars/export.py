@@ -4,7 +4,6 @@ from __future__ import annotations
 import math
 import re
 
-
 _STATE_DICT_MODULE_PREFIX = "base_model.model."
 
 
