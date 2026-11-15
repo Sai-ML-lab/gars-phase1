@@ -525,10 +525,22 @@ def _check_loaded_ranks_and_scaling(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=PROJECT_ROOT / "configs" / "v1_deberta_rte.json")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=PROJECT_ROOT / "configs" / "v1_deberta_rte.json",
+    )
     parser.add_argument("--seed", type=int, required=True, choices=[42, 123, 999])
-    parser.add_argument("--parent-root", type=Path, default=PROJECT_ROOT / "results" / "v1_parent_rte")
-    parser.add_argument("--output-root", type=Path, default=PROJECT_ROOT / "results" / "v1_pruned")
+    parser.add_argument(
+        "--parent-root",
+        type=Path,
+        default=PROJECT_ROOT / "results" / "v1_parent_rte",
+    )
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=PROJECT_ROOT / "results" / "v1_pruned",
+    )
     parser.add_argument("--device", default="auto")
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument(
