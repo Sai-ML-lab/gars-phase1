@@ -430,3 +430,28 @@ The repeated Transformers load reports list DeBERTa pretraining MLM-head tensors
 
 
 **Full-precision aggregation utility added:** `scripts/aggregate_pruning_results.py` reads the three local comparison summaries, validates seed IDs, required methods/metrics, reload status, and equal physical budgets, then computes per-method means/sample standard deviations, paired changes versus parent, paired GARS-minus-baseline differences, and rank histograms. It uses the full-precision JSON values rather than the rounded terminal display. This utility has been committed but still needs to be run on the student's local result files.
+
+
+## 15 November 2026 — full-precision three-seed aggregate reviewed
+
+The student supplied the full output of `scripts/aggregate_pruning_results.py`. The aggregator confirms:
+- Seeds 42, 123 and 999 use the configured pruning base revision `8ccc9b6f36199bec6961081d44eb72fb3f7353f3`.
+- Parent A/B factor count is 1,179,648; all methods/seeds have 708,096 parameters and a 39.9739583% reduction.
+- All nine seed/method entries record `reload_validation = passed`.
+
+Full-precision mean ± sample SD across the three seeds:
+
+| Method | Accuracy | Macro-F1 | Loss |
+|---|---:|---:|---:|
+| Parent | 0.831528 ± 0.012678 | 0.829541 ± 0.013702 | 0.444437 ± 0.009443 |
+| GARS | 0.831528 ± 0.012678 | 0.829541 ± 0.013702 | 0.445440 ± 0.010439 |
+| Global singular value | 0.830325 ± 0.014440 | 0.828254 ± 0.015627 | 0.445873 ± 0.011321 |
+| Uniform local energy | 0.831528 ± 0.012678 | 0.829349 ± 0.013778 | 0.448445 ± 0.012842 |
+
+Paired mean GARS-minus-baseline differences (mean ± sample SD):
+- Versus global singular-value: accuracy +0.001203 ± 0.002084; macro-F1 +0.001287 ± 0.002230; loss -0.000433 ± 0.000994.
+- Versus uniform local energy: accuracy 0.000000 ± 0.000000; macro-F1 +0.000192 ± 0.000186; loss -0.003004 ± 0.003062.
+
+GARS-parent mean paired changes are accuracy 0, macro-F1 0, loss +0.001003 ± 0.001003. Thus, GARS matches parent classification metrics at the reported precision but does not preserve parent loss. GARS has lower validation loss than uniform local energy in all three seeds. Against global singular-value pruning, GARS has lower loss on seeds 42 and 999 but higher loss on seed 123; the average difference is small. This must not be described as consistent domination of the global baseline.
+
+A dedicated `docs/v1_seeded_results.md` report has been added with full tables, paired results, limitations, and a carefully bounded Phase 1 conclusion. This remains a one-model, one-task, three-seed validation pilot. No significance claim, larger-scale generalization claim, test-set claim, or latency claim is supported yet.
