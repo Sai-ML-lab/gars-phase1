@@ -18,7 +18,6 @@ from gars.diagnostics import (
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SEEDS_DEFAULT = (42, 123, 999)
 METHODS = ("gars", "global_singular_value", "uniform_local_energy")
-EXPECTED_BASE_REVISION = "8ccc9b6f36199bec6961081d44eb72fb3f7353f3"
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -96,6 +95,12 @@ def _load_seed_artifacts(
     seed: int,
     parent_root: Path,
     pruned_root: Path,
+    expected_revision: str,
+    expected_layers: int,
+    expected_modules: int,
+    expected_capture_steps: int,
+    min_rank: int,
+    max_rank: int,
 ) -> dict[str, Any]:
     seed_dir = parent_root / f"seed_{seed}"
     gradient_data = _read_json(seed_dir / "gradient_importance.json")
@@ -109,25 +114,28 @@ def _load_seed_artifacts(
     if int(comparison.get("seed", -1)) != seed:
         raise ValueError(f"Comparison summary seed does not match directory seed {seed}.")
     revision = comparison.get("base_model_revision")
-    if revision != EXPECTED_BASE_REVISION:
+    if revision != expected_revision:
         raise ValueError(
             f"Seed {seed} uses base revision {revision!r}; "
-            f"expected {EXPECTED_BASE_REVISION!r}."
+            f"expected {expected_revision!r}."
         )
 
     gradients = {
         str(int(layer)): float(value)
         for layer, value in gradient_data["importance_by_transformer_block"].items()
     }
-    if len(gradients) != 12:
-        raise ValueError(f"Seed {seed}: expected 12 block scores, got {len(gradients)}.")
+    if len(gradients) != expected_layers:
+        raise ValueError(
+            f"Seed {seed}: expected {expected_layers} block scores, got {len(gradients)}."
+        )
     if any(not math.isfinite(value) or value < 0 for value in gradients.values()):
         raise ValueError(f"Seed {seed}: gradient scores must be finite and non-negative.")
 
     capture_steps = int(gradient_data.get("capture_steps", -1))
-    if capture_steps != 50:
+    if capture_steps != expected_capture_steps:
         raise ValueError(
-            f"Seed {seed}: expected 50 gradient capture steps, got {capture_steps}."
+            f"Seed {seed}: expected {expected_capture_steps} gradient capture steps, "
+            f"got {capture_steps}."
         )
     accumulator = gradient_data.get("accumulator_state", {})
     counts = {
@@ -143,6 +151,7 @@ def _load_seed_artifacts(
     expected_modules: set[str] | None = None
     entropy_reference: dict[str, float] | None = None
     layer_reference: dict[str, int] | None = None
+    expected_budget: int | None = None
 
     for method in METHODS:
         allocation = _read_json(
@@ -156,16 +165,22 @@ def _load_seed_artifacts(
             raise RuntimeError(
                 f"Seed {seed}/{method}: reload validation did not pass."
             )
-        if int(allocation.get("achieved_parameters", -1)) != 708096:
+        achieved_parameters = int(allocation.get("achieved_parameters", -1))
+        if achieved_parameters <= 0:
+            raise ValueError(f"Seed {seed}/{method}: invalid physical parameter count.")
+        if expected_budget is None:
+            expected_budget = achieved_parameters
+        elif achieved_parameters != expected_budget:
             raise ValueError(
-                f"Seed {seed}/{method}: unexpected achieved physical parameter count."
+                f"Seed {seed}: policies have different physical budgets."
             )
 
         module_items = allocation.get("per_module", {})
         modules = set(module_items)
-        if len(modules) != 24:
+        if len(modules) != expected_modules:
             raise ValueError(
-                f"Seed {seed}/{method}: expected 24 adapted projections, got {len(modules)}."
+                f"Seed {seed}/{method}: expected {expected_modules} adapted projections, "
+                f"got {len(modules)}."
             )
         if expected_modules is None:
             expected_modules = modules
@@ -184,7 +199,7 @@ def _load_seed_artifacts(
             retained = float(item["squared_energy_retained"])
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"{seed}/{method}/{module}: entropy outside [0, 1].")
-            if not 2 <= rank <= 32:
+            if not min_rank <= rank <= max_rank:
                 raise ValueError(f"{seed}/{method}/{module}: retained rank out of range.")
             if not 0.0 <= retained <= 1.0 + 1e-8:
                 raise ValueError(f"{seed}/{method}/{module}: invalid retained energy.")
@@ -246,6 +261,7 @@ def _load_seed_artifacts(
     return {
         "seed": seed,
         "base_model_revision": revision,
+        "achieved_parameters": expected_budget,
         "gradient_capture_steps": capture_steps,
         "gradient_counts_by_layer": counts,
         "gradient_by_layer": gradients,
@@ -265,6 +281,8 @@ def _load_seed_artifacts(
 def build_mechanism_report(
     seeds: list[int],
     artifacts: dict[int, dict[str, Any]],
+    base_model_revision: str,
+    expected_capture_steps: int,
 ) -> dict[str, Any]:
     gradient_profiles = {
         str(seed): artifacts[seed]["gradient_by_layer"] for seed in seeds
@@ -532,10 +550,12 @@ def build_mechanism_report(
     return {
         "analysis_name": "GARS cross-seed gradient reliability and spectral concentration",
         "seeds": seeds,
-        "base_model_revision": EXPECTED_BASE_REVISION,
+        "base_model_revision": base_model_revision,
         "design": {
             "gradient_unit": "Transformer block; joint LoRA A/B gradient Frobenius norm",
-            "gradient_aggregation": "arithmetic mean over final 50 optimizer updates",
+            "gradient_aggregation": (
+                f"arithmetic mean over final {expected_capture_steps} optimizer updates"
+            ),
             "spectral_entropy": (
                 "normalized entropy of squared singular-value energy; "
                 "lower means more concentrated"
@@ -586,6 +606,11 @@ def build_mechanism_report(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--config",
+        type=Path,
+        default=PROJECT_ROOT / "configs" / "v1_deberta_rte.json",
+    )
+    parser.add_argument(
         "--parent-root",
         type=Path,
         default=PROJECT_ROOT / "results" / "v1_parent_rte",
@@ -611,8 +636,30 @@ def main() -> None:
     if len(set(args.seeds)) != len(args.seeds) or len(args.seeds) < 2:
         raise ValueError("Provide at least two unique seeds for cross-seed analysis.")
 
+    config = _read_json(args.config)
+    expected_revision = str(config["model"]["revision"])
+    expected_layers = int(
+        config["model"].get("num_transformer_layers", 12)
+    )
+    expected_modules = expected_layers * len(config["lora"]["target_modules"])
+    expected_capture_steps = int(
+        config["training"]["gradient_capture_last_optimizer_steps"]
+    )
+    min_rank = int(config["gars"]["min_rank"])
+    max_rank = int(config["lora"]["rank"])
+
     artifacts = {
-        seed: _load_seed_artifacts(seed, args.parent_root, args.pruned_root)
+        seed: _load_seed_artifacts(
+            seed,
+            args.parent_root,
+            args.pruned_root,
+            expected_revision,
+            expected_layers,
+            expected_modules,
+            expected_capture_steps,
+            min_rank,
+            max_rank,
+        )
         for seed in args.seeds
     }
     first_modules = set(artifacts[args.seeds[0]]["entropy_by_module"])
@@ -623,7 +670,15 @@ def main() -> None:
         if set(artifacts[seed]["gradient_by_layer"]) != first_layers:
             raise ValueError("Gradient layer IDs differ across seeds.")
 
-    report = build_mechanism_report(args.seeds, artifacts)
+    budgets = {artifacts[seed]["achieved_parameters"] for seed in args.seeds}
+    if len(budgets) != 1:
+        raise ValueError("Physical A/B parameter budgets differ across seeds.")
+    report = build_mechanism_report(
+        args.seeds,
+        artifacts,
+        expected_revision,
+        expected_capture_steps,
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n",
