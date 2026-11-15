@@ -11,6 +11,7 @@ from typing import Any
 from gars.diagnostics import (
     descriptive_stats,
     pairwise_profile_correlations,
+    partial_spearman_rank_correlation,
     spearman_rank_correlation,
 )
 
@@ -308,6 +309,10 @@ def build_mechanism_report(
     entropy_rank_rhos: dict[str, list[float]] = {method: [] for method in METHODS}
     gradient_rank_uplift_rhos: list[float] = []
     entropy_gars_uniform_module_rhos: list[float] = []
+    partial_gradient_entropy_rhos: list[float] = []
+    partial_gradient_gars_rank_rhos: list[float] = []
+    partial_gradient_rank_uplift_rhos: list[float] = []
+    partial_entropy_gars_rank_rhos: list[float] = []
     for seed in seeds:
         item = artifacts[seed]
         gradient = item["gradient_by_layer"]
@@ -326,12 +331,41 @@ def build_mechanism_report(
             layer: gars_layer[layer] - global_layer[layer] for layer in gars_layer
         }
 
+        ordered_layers = sorted(gradient, key=int)
+        layer_depth = [float(int(layer)) for layer in ordered_layers]
+        gradient_values = [gradient[layer] for layer in ordered_layers]
+        entropy_values = [entropy_layer[layer] for layer in ordered_layers]
+        gars_rank_values = [gars_layer[layer] for layer in ordered_layers]
+        uniform_rank_values = [uniform_layer[layer] for layer in ordered_layers]
+        rank_uplift_values = [rank_uplift[layer] for layer in ordered_layers]
+
         rho_gradient_entropy = spearman_rank_correlation(
-            [gradient[layer] for layer in sorted(gradient, key=int)],
-            [entropy_layer[layer] for layer in sorted(gradient, key=int)],
+            gradient_values,
+            entropy_values,
         )
         if rho_gradient_entropy is not None:
             gradient_entropy_rhos.append(rho_gradient_entropy)
+
+        partial_gradient_entropy = partial_spearman_rank_correlation(
+            gradient_values, entropy_values, layer_depth
+        )
+        partial_gradient_gars_rank = partial_spearman_rank_correlation(
+            gradient_values, gars_rank_values, layer_depth
+        )
+        partial_gradient_uplift = partial_spearman_rank_correlation(
+            gradient_values, rank_uplift_values, layer_depth
+        )
+        partial_entropy_gars_rank = partial_spearman_rank_correlation(
+            entropy_values, gars_rank_values, layer_depth
+        )
+        for value, collection in (
+            (partial_gradient_entropy, partial_gradient_entropy_rhos),
+            (partial_gradient_gars_rank, partial_gradient_gars_rank_rhos),
+            (partial_gradient_uplift, partial_gradient_rank_uplift_rhos),
+            (partial_entropy_gars_rank, partial_entropy_gars_rank_rhos),
+        ):
+            if value is not None:
+                collection.append(value)
 
         for method in METHODS:
             layer_ranks = method_data[method]["mean_rank_by_layer"]
@@ -409,13 +443,55 @@ def build_mechanism_report(
                 }
             )
 
+        threshold_values = list(
+            method_data["gars"]["thresholds_by_layer"].values()
+        )
         per_seed[seed_key] = {
             "gradient_vs_spectral_entropy_spearman_rho": rho_gradient_entropy,
+            "gradient_vs_spectral_entropy_partial_spearman_controlling_depth": (
+                partial_gradient_entropy
+            ),
             "gradient_vs_gars_mean_rank_spearman_rho": spearman_rank_correlation(
-                [gradient[layer] for layer in sorted(gradient, key=int)],
-                [gars_layer[layer] for layer in sorted(gradient, key=int)],
+                gradient_values, gars_rank_values
+            ),
+            "gradient_vs_gars_mean_rank_partial_spearman_controlling_depth": (
+                partial_gradient_gars_rank
             ),
             "gradient_vs_gars_minus_uniform_rank_spearman_rho": rho_uplift,
+            "gradient_vs_gars_minus_uniform_rank_partial_spearman_controlling_depth": (
+                partial_gradient_uplift
+            ),
+            "spectral_entropy_vs_gars_mean_rank_partial_spearman_controlling_depth": (
+                partial_entropy_gars_rank
+            ),
+            "layer_depth_trends": {
+                "gradient_importance": spearman_rank_correlation(
+                    layer_depth, gradient_values
+                ),
+                "mean_squared_spectral_entropy": spearman_rank_correlation(
+                    layer_depth, entropy_values
+                ),
+                "gars_mean_rank": spearman_rank_correlation(
+                    layer_depth, gars_rank_values
+                ),
+                "uniform_mean_rank": spearman_rank_correlation(
+                    layer_depth, uniform_rank_values
+                ),
+            },
+            "gars_threshold_clipping": {
+                "number_of_layers": len(threshold_values),
+                "at_lower_bound_0_80": sum(
+                    math.isclose(value, 0.80, rel_tol=0.0, abs_tol=1e-9)
+                    for value in threshold_values
+                ),
+                "at_upper_bound_0_99": sum(
+                    math.isclose(value, 0.99, rel_tol=0.0, abs_tol=1e-9)
+                    for value in threshold_values
+                ),
+                "threshold_mean": descriptive_stats(threshold_values)["mean"],
+                "threshold_min": min(threshold_values) if threshold_values else None,
+                "threshold_max": max(threshold_values) if threshold_values else None,
+            },
             "entropy_vs_gars_minus_uniform_module_rank_spearman_rho": rho_entropy_uplift,
             "mean_spectral_entropy": descriptive_stats(list(entropy_modules.values())),
             "mean_gradient_importance": descriptive_stats(list(gradient.values())),
@@ -437,6 +513,20 @@ def build_mechanism_report(
         "module_entropy_vs_gars_minus_uniform_module_rank": descriptive_stats(
             entropy_gars_uniform_module_rhos
         ),
+        "depth_adjusted_partial_spearman": {
+            "gradient_vs_spectral_entropy": descriptive_stats(
+                partial_gradient_entropy_rhos
+            ),
+            "gradient_vs_gars_mean_rank": descriptive_stats(
+                partial_gradient_gars_rank_rhos
+            ),
+            "gradient_vs_gars_minus_uniform_rank": descriptive_stats(
+                partial_gradient_rank_uplift_rhos
+            ),
+            "spectral_entropy_vs_gars_mean_rank": descriptive_stats(
+                partial_entropy_gars_rank_rhos
+            ),
+        },
     }
 
     return {
