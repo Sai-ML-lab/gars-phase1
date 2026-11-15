@@ -156,3 +156,16 @@ python scripts/analyze_gradient_spectral_mechanism.py \
 ```
 
 The output includes seed-level gradient scores/ranks, threshold-bound counts, gradient/entropy correlations, policy-specific rank diagnostics, pairwise cross-seed rank stability, per-block summaries, and interpretation notes. Preserve the generated JSON with the Phase 1 experiment artifacts.
+
+
+## Beta sensitivity ablation (post-hoc, same parent)
+
+After the initial V1 comparison, assess whether the gradient-conditioning strength `beta` materially changes the result. Use the existing trained parent adapters and spectra; do not retrain the parent for this sensitivity analysis.
+
+Run `scripts/run_gars_beta_sweep.py` for `beta ∈ {0.00, 0.25, 0.50, 0.75, 1.00}` on seeds 42, 123 and 999. Every beta is independently recalibrated to the same 708,096 physical A/B factor parameters. Only the GARS policy is exported per beta; the baseline methods are not recomputed in each sweep run.
+
+Two equivalence checks are enforced:
+- `beta=0` makes the gradient ratio exponent zero, so every layer receives the same energy threshold. The resulting per-module ranks must match the already saved uniform-local-energy allocation for that seed.
+- `beta=0.5` must reproduce the original V1 GARS allocation for that seed.
+
+The sweep records full-precision validation metrics, paired changes versus parent, rank histograms, cross-seed allocation correlations, rank changes relative to beta=0, and the number of layer thresholds clipped at each bound. This is a sensitivity analysis, not a hyperparameter-selection exercise: do not choose beta using the validation split and then describe the same validation result as an unbiased estimate. The fixed beta=0.5 remains the V1 configuration; alternative values are exploratory.
