@@ -261,3 +261,24 @@ Interpret only as a three-seed pilot parent baseline on one model/task; n=3 is t
 All three reload reports display base-model revision `main`. The original training metadata did not record an immutable Hub commit SHA (`base_model_revision` was absent/null and the validator fell back to the config's `main`). The three training runs were performed in the same work session against the same model ID, but exact byte-identical pretrained snapshot provenance has not been independently established. Before treating this as fully pinned/reproducible, record the local Hugging Face cache `refs/main` commit SHA and compare the three run timestamps/cache provenance if available. Do not silently rewrite historical metadata to claim a SHA that was not captured at training time.
 
 **Next stage:** construct and validate the post-hoc matched-physical-budget export pipeline. For each seed, compare parent, uniform local squared-energy, global singular-value cutoff and GARS. PEFT's `rank_pattern` and `alpha_pattern` can express per-module rank and alpha; when physically changing rank, `alpha_pattern` must be set to preserve the original external LoRA scale (`alpha/r` for standard LoRA, `alpha/sqrt(r)` for rank-stabilized LoRA). This must be verified by reloading the exported adapter and checking module ranks/scaling before interpreting validation metrics.
+
+
+## 15 November 2026 — post-hoc physical pruning exporter implemented
+
+**Three-seed parent baseline is complete:** seeds 42, 123 and 999 all passed the adapter save/load validator. The descriptive three-seed parent metrics are accuracy 0.8315283 ± 0.0126783, macro-F1 0.8295411 ± 0.0137022, and validation loss 0.4444372 ± 0.0094428 (sample standard deviation; n=3). These are pilot descriptive statistics, not inferential evidence.
+
+**Implementation committed:**
+- Added `src/gars/export.py` with standard-LoRA and rank-stabilized-LoRA alpha adjustment to preserve the original multiplier after rank changes.
+- Added utility tests for scaling preservation and exact PEFT module-pattern construction.
+- Added `scripts/run_pruning_comparison.py`, which reads one parent adapter and its per-block gradients, computes all module spectra with QR-SVD, calibrates uniform-local-energy/global-singular-value/GARS allocations to the same 60% physical A/B parameter target, and creates physically truncated A/B tensors.
+- The exporter updates per-module PEFT `rank_pattern` and `alpha_pattern`, preserves classifier/pooler modules_to_save and tokenizer assets, and writes a per-module allocation report.
+- It reloads each export on a fresh FP32 base model, checks all realized A/B ranks and runtime LoRA scaling multipliers, then evaluates the same GLUE RTE validation split.
+- Added documentation for scaling preservation and pruning commands. Generated binary adapter directories under `results/v1_pruned` are ignored by Git.
+
+**Critical safeguards:**
+- PEFT's rank/alpha pattern names are based on the underlying model's module paths, not the `base_model.model.` state-dict wrapper prefix. Pattern keys are regex-escaped and have no leading `^`, to avoid the optional-prefix matching behavior of PEFT's matcher.
+- The exporter refuses a floating `main` revision unless the user explicitly opts in. All three historical run reports show `main` rather than an immutable commit SHA, so exact historical pretrained-snapshot provenance remains unproven. Retrieve and record the cached Hub SHA before pruning; do not silently claim the parent models are pinned.
+- Standard LoRA scaling is preserved after rank change with `alpha_k = alpha_0 * k / r_0`; rank-stabilized scaling uses `alpha_k = alpha_0 * sqrt(k / r_0)`. The script verifies the loaded runtime multiplier for every target module.
+- The exporter explicitly rejects unsupported DoRA, LoRA-bias, QALoRA and fan-in/fan-out parent configurations.
+
+**Not yet verified:** the new script has not yet been run on the student's machine. Run Ruff and pytest, then use seed 42 first. Do not launch all three pruning comparisons until seed 42 exports load with the expected per-module ranks and preserved scaling.
