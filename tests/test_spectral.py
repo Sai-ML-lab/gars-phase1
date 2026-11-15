@@ -43,7 +43,7 @@ def test_qr_svd_matches_direct_dense_svd() -> None:
     B = torch.randn(13, 5, dtype=torch.float64)
 
     U_qr, S_qr, Vh_qr = qr_svd_lora_update(A, B)
-    U_dense, S_dense, Vh_dense = torch.linalg.svd(B @ A, full_matrices=False)
+    U_dense, S_dense, _Vh_dense = torch.linalg.svd(B @ A, full_matrices=False)
 
     assert torch.allclose(S_qr, S_dense, atol=1e-9, rtol=1e-8)
     reconstructed = U_qr @ torch.diag(S_qr) @ Vh_qr
