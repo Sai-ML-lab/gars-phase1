@@ -6,7 +6,7 @@ scientific experiment and must not be reported as a GARS result.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import torch
@@ -78,7 +78,7 @@ def main() -> int:
         torch.mps.synchronize()
 
     report = {
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "timestamp_utc": datetime.now(UTC).isoformat(),
         "model_id": MODEL_ID,
         "device": str(device),
         "loss": float(loss.detach().cpu().item()),
