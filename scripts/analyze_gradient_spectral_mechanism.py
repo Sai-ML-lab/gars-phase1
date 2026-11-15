@@ -122,7 +122,7 @@ def _read_seed_artifacts(
                     f"{allocation_path}: {module_name} has invalid squared-spectrum entropy."
                 )
             rank = int(record["retained_rank"])
-            if not 1 <= rank <= 32:
+            if not 2 <= rank <= 32:
                 raise ValueError(f"{allocation_path}: {module_name} has invalid rank {rank}.")
         module_sets[method] = set(modules)
         policies[method] = {
@@ -385,13 +385,37 @@ def analyze(
             "per_layer_mean_retained_rank_across_seeds": rank_layer_averages,
         },
         "interpretation_notes": [
-            "Gradient scores are joint Frobenius norms averaged over the final 50 optimizer updates, as specified for V1.",
-            "Gradient scores are normalized by their within-seed layer mean before cross-seed comparison; this removes global scale differences but retains relative layer importance.",
-            "Layer spectral entropy is the arithmetic mean of the two target-projection normalized squared-spectrum entropies in that block.",
-            "Entropy is computed from the common unpruned parent spectrum and must match across pruning policies within a seed.",
-            "Correlations use 12 blocks or 24 modules per seed and are descriptive only; no p-values or significance claims are produced.",
-            "The correlation between GARS ranks and gradient importance is policy-coupled by construction, not independent evidence that gradients predict an optimal rank.",
-            "Cross-seed rank agreement describes allocation stability under these three training seeds, not generalization to other tasks or model scales.",
+            (
+                "Gradient scores are joint Frobenius norms averaged over the final "
+                "50 optimizer updates, as specified for V1."
+            ),
+            (
+                "Gradient scores are normalized by their within-seed layer mean "
+                "before cross-seed comparison; this removes global scale differences "
+                "but retains relative layer importance."
+            ),
+            (
+                "Layer spectral entropy is the arithmetic mean of the two "
+                "target-projection normalized squared-spectrum entropies in that block."
+            ),
+            (
+                "Entropy is computed from the common unpruned parent spectrum and "
+                "must match across pruning policies within a seed."
+            ),
+            (
+                "Correlations use 12 blocks or 24 modules per seed and are "
+                "descriptive only; no p-values or significance claims are produced."
+            ),
+            (
+                "The correlation between GARS ranks and gradient importance is "
+                "policy-coupled by construction, not independent evidence that "
+                "gradients predict an optimal rank."
+            ),
+            (
+                "Cross-seed rank agreement describes allocation stability under "
+                "these three training seeds, not generalization to other tasks "
+                "or model scales."
+            ),
         ],
     }
 
