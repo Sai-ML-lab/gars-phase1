@@ -42,3 +42,6 @@ checkpoints/
 # Experiment tracking
 wandb/
 mlruns/
+
+# Locally generated V1 parent adapters (large model/tokenizer assets)
+results/v1_parent_rte/*/parent_adapter/
