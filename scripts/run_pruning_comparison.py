@@ -584,9 +584,13 @@ def main() -> None:
         int(key): float(value)
         for key, value in gradient_data["importance_by_transformer_block"].items()
     }
-    if len(original_importance) != 12:
+    expected_layers = int(
+        config["model"].get("num_transformer_layers", len(original_importance))
+    )
+    if len(original_importance) != expected_layers:
         raise RuntimeError(
-            f"Expected 12 block-importance scores, got {len(original_importance)}."
+            f"Expected {expected_layers} block-importance scores, "
+            f"got {len(original_importance)}."
         )
     layer_ids = sorted(original_importance)
     if not 0 <= args.importance_cyclic_shift < len(layer_ids):
