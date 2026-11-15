@@ -639,6 +639,23 @@ def main() -> None:
     print(json.dumps(report["cross_seed_rank_allocation_stability"], indent=2))
     print("\nWITHIN-SEED ASSOCIATIONS")
     print(json.dumps(report["within_seed_associations"], indent=2))
+    print("\nPER-SEED DEPTH AND THRESHOLD DIAGNOSTICS")
+    for seed, values in report["per_seed"].items():
+        print(
+            seed,
+            json.dumps(
+                {
+                    "layer_depth_trends": values["layer_depth_trends"],
+                    "gars_threshold_clipping": values["gars_threshold_clipping"],
+                    "partial_associations": {
+                        key: value
+                        for key, value in values.items()
+                        if "partial_spearman" in key
+                    },
+                },
+                indent=2,
+            ),
+        )
     print("\nTEMPORAL RELIABILITY")
     print(json.dumps(report["data_completeness"]["temporal_within_window_reliability"], indent=2))
 
