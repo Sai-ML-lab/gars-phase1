@@ -4,9 +4,10 @@ from __future__ import annotations
 import argparse
 import itertools
 import json
+import math
 import statistics
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from gars.mechanism import (
     correlation_summary,
@@ -51,7 +52,7 @@ def _layer_means_by_module(
     field: str,
 ) -> dict[int, float]:
     grouped: dict[int, list[float]] = {}
-    for module_name, item in module_values.items():
+    for item in module_values.values():
         layer = int(item["layer_id"])
         grouped.setdefault(layer, []).append(float(item[field]))
     if set(grouped) != set(EXPECTED_LAYERS):
@@ -86,8 +87,8 @@ def _read_seed_artifacts(
         raise ValueError(
             f"Seed {seed}: expected 12 gradient scores, found {sorted(importance)}."
         )
-    if any(score < 0 for score in importance.values()):
-        raise ValueError(f"Seed {seed}: gradient scores must be non-negative.")
+    if any(not math.isfinite(score) or score < 0 for score in importance.values()):
+        raise ValueError(f"Seed {seed}: gradient scores must be finite and non-negative.")
 
     policies: dict[str, dict[str, Any]] = {}
     module_sets: dict[str, set[str]] = {}
@@ -115,6 +116,14 @@ def _read_seed_artifacts(
                 raise ValueError(
                     f"{allocation_path}: {module_name} missing {sorted(missing)}."
                 )
+            entropy = float(record["squared_spectral_entropy"])
+            if not math.isfinite(entropy) or not 0.0 <= entropy <= 1.0:
+                raise ValueError(
+                    f"{allocation_path}: {module_name} has invalid squared-spectrum entropy."
+                )
+            rank = int(record["retained_rank"])
+            if not 1 <= rank <= 32:
+                raise ValueError(f"{allocation_path}: {module_name} has invalid rank {rank}.")
         module_sets[method] = set(modules)
         policies[method] = {
             "allocation": allocation,
@@ -185,6 +194,8 @@ def _read_seed_artifacts(
 
 def _pairwise_seed_records(
     vectors: dict[int, dict[Any, float]],
+    *,
+    compare_order: bool = False,
 ) -> dict[str, Any]:
     records: dict[str, Any] = {}
     for left_seed, right_seed in itertools.combinations(sorted(vectors), 2):
@@ -197,8 +208,8 @@ def _pairwise_seed_records(
         records[key] = {
             "correlation": correlation_summary(left, right),
             "agreement": rank_agreement(
-                descending_average_ranks(left),
-                descending_average_ranks(right),
+                descending_average_ranks(left) if compare_order else left,
+                descending_average_ranks(right) if compare_order else right,
             ),
         }
     return records
@@ -206,7 +217,7 @@ def _pairwise_seed_records(
 
 def _cross_seed_layer_summary(
     seeds: dict[int, dict[str, Any]],
-    value_getter,
+    value_getter: Callable[[dict[str, Any], int], float],
 ) -> dict[str, Any]:
     layers = sorted(EXPECTED_LAYERS)
     result: dict[str, Any] = {}
@@ -230,7 +241,10 @@ def analyze(
     gradient_ranks = {
         seed: item["gradient_rank"] for seed, item in seed_artifacts.items()
     }
-    gradient_pairwise = _pairwise_seed_records(normalized_gradients)
+    gradient_pairwise = _pairwise_seed_records(
+        normalized_gradients,
+        compare_order=True,
+    )
     gradient_rank_pairwise = _pairwise_seed_records(gradient_ranks)
 
     seed_level: dict[str, Any] = {}
@@ -242,7 +256,6 @@ def analyze(
         seed_methods: dict[str, Any] = {}
         for method in METHODS:
             layer_ranks = item["layer_mean_retained_rank"][method]
-            module_records = item["policies"][method]["modules"]
             module_entropy = item["policies"][method]["entropy_by_module"]
             module_ranks = item["policies"][method]["rank_by_module"]
             module_names = item["module_names"]
