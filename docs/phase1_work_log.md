@@ -554,3 +554,38 @@ Console-reported three-seed averages (rounded to five decimal places):
 **Interpretation:** rank-allocation stability falls monotonically over the tested beta grid, while aggregate validation accuracy/macro-F1/loss change little for nonzero beta. Beta=0.25 gives the lowest rounded mean loss, but its difference from beta=0.5 is only ~0.00005, and from beta=1.0 ~0.00003; these are not evidence for selecting an optimal beta. The current V1 beta=0.5 remains frozen. The result suggests beta changes allocation patterns more than aggregate RTE metrics.
 
 The console values are rounded. Exact per-seed changes, threshold clipping, and rank shifts must be extracted from the saved JSON before drawing final claims. No validation-driven beta selection should be claimed; this remains a sensitivity experiment, not a held-out evaluation.
+
+
+## 15 November 2026 — exact beta-sweep diagnostics reviewed
+
+The student supplied the full per-beta aggregate output and per-seed comparisons against beta 0 for the completed five-point sensitivity sweep (beta 0.00, 0.25, 0.50, 0.75 and 1.00; seeds 42, 123 and 999).
+
+**Exact aggregate findings (mean ± sample SD, n=3):**
+- Accuracy is 0.83152828 ± 0.01267828 for every beta.
+- Macro-F1 is 0.82934878 ± 0.01377844 at beta 0, and 0.82954115 ± 0.01370222 for beta 0.25–1.00.
+- Mean validation loss is 0.44844453 ± 0.01284235 (beta 0), 0.44539351 ± 0.01042797 (0.25), 0.44544005 ± 0.01043943 (0.50), 0.44542829 ± 0.01046567 (0.75), and 0.44536201 ± 0.01038823 (1.00).
+- Paired mean loss change versus parent is +0.00400734 ± 0.00379167, +0.00095632 ± 0.00099421, +0.00100286 ± 0.00100317, +0.00099110 ± 0.00103638, and +0.00092482 ± 0.00094576 for beta 0, 0.25, 0.50, 0.75 and 1.00 respectively. Paired accuracy change is zero for all beta; paired macro-F1 change is -0.00019237 ± 0.00018608 at beta 0 and zero for beta 0.25–1.00.
+- Cross-seed module-rank stability (mean pairwise Spearman rho) declines monotonically: 0.93196370 ± 0.01267539, 0.86575494 ± 0.07284363, 0.82880516 ± 0.10896428, 0.78547120 ± 0.12447326 and 0.75841963 ± 0.14920505.
+
+**Allocation differences relative to beta 0:**
+- Beta 0.25 changes 23/24 module ranks in each seed; mean absolute rank shifts are 6.0833 (123), 7.1667 (42) and 5.0833 (999).
+- Beta 0.50 changes 23/24 ranks in each seed; mean absolute shifts are 6.0833 (123), 8.0000 (42) and 5.0833 (999).
+- Beta 0.75 changes 22, 23 and 22 ranks for seeds 123, 42 and 999; mean absolute shifts are 6.0833, 8.0000 and 5.0833.
+- Beta 1.00 changes 23/24 ranks in each seed; mean absolute shifts are 6.4167, 8.0000 and 5.4167.
+- All per-seed beta-sweep reload checks passed. Beta 0 exactly matched the uniform-local-energy ranks, and beta 0.50 reproduced the original V1 GARS ranks.
+
+**Threshold clipping (lower / upper bound counts among 12 layers):**
+
+| Seed | Beta 0.00 | Beta 0.25 | Beta 0.50 | Beta 0.75 | Beta 1.00 |
+|---:|---:|---:|---:|---:|---:|
+| 123 | 0 / 0 | 0 / 8 | 1 / 8 | 1 / 8 | 1 / 8 |
+| 42 | 0 / 0 | 0 / 7 | 2 / 8 | 3 / 8 | 3 / 8 |
+| 999 | 0 / 0 | 0 / 8 | 0 / 8 | 0 / 8 | 0 / 8 |
+
+At beta 0, the layer-constant threshold values are 0.97766155 (seed 123), 0.97101897 (seed 42) and 0.98057332 (seed 999). At beta 0.25, no lower clips occur, while 7–8 layers per seed hit the upper bound. At beta 0.50 and above, the lower bound is also active for some seeds.
+
+**Interpretation:** beta strongly changes the integer rank allocation but has negligible effect on aggregate validation accuracy/macro-F1 in this three-seed RTE pilot. Cross-seed rank allocation becomes progressively less stable with increasing beta. The small mean-loss differences across nonzero beta values do not justify selecting an alternative. The frozen V1 beta remains 0.50; this is a sensitivity analysis, not validation-driven hyperparameter selection or evidence of an optimal beta.
+
+**Quality-gate status:** the student has not yet supplied a fresh full-tree Ruff and pytest result after the latest mechanism/beta-sweep code and test additions. Do not mark the current code state as fully verified on the student's Mac until the following are reported after pulling the latest main branch:
+- ruff check scripts src/gars tests experiments
+- python -m pytest -q
