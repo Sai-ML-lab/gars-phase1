@@ -30,8 +30,6 @@ from transformers import (
     DataCollatorWithPadding,
 )
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
 from gars.export import alpha_for_preserved_scaling, peft_module_pattern_key
 from gars.importance import transformer_layer_index
 from gars.policy import (
@@ -47,6 +45,9 @@ from gars.spectral import (
     qr_svd_lora_update,
     squared_energy_ratio,
 )
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 _FACTOR_PATTERN = re.compile(
