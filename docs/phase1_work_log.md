@@ -786,3 +786,28 @@ The current trainer writes stepwise_importance_by_optimizer_step, so a separate 
 4. Consider MRPC only after the three higher-priority activities.
 
 The revised plan is recorded in docs/remaining_phase1_experiment_plan.md. The DeBERTa-v3-large pinned revision was checked against the Hugging Face config page; it specifies hidden size 1024 and 24 layers.
+
+
+## 16 November 2026 — DeBERTa-v3-large/RTE three-seed study completed
+
+The student supplied the aggregate output for seeds 42, 123 and 999. All three runs used the pinned revision `8869586e1c6f5654a9a2a5c517fe710e24a488d0`.
+
+**Integrity and budget:**
+- Parent physical LoRA A/B factor parameters: 3,145,728.
+- Each of GARS, global singular-value and uniform local-energy pruning achieved 1,888,256 parameters for each seed.
+- Reduction: 39.9739583%, with identical physical budget across all methods and seeds.
+- All nine method/seed reload validations passed.
+
+**Three-seed validation means ± sample SD:**
+- Parent: accuracy 0.867629 ± 0.036341; macro-F1 0.866789 ± 0.037078; loss 0.371230 ± 0.046347.
+- GARS: accuracy 0.867629 ± 0.036341; macro-F1 0.866789 ± 0.037078; loss 0.371468 ± 0.046416.
+- Global singular-value: accuracy 0.867629 ± 0.036341; macro-F1 0.866789 ± 0.037078; loss 0.371283 ± 0.046370.
+- Uniform local energy: accuracy 0.867629 ± 0.036341; macro-F1 0.866789 ± 0.037078; loss 0.370233 ± 0.045922.
+
+All methods retained parent accuracy and macro-F1 at reported precision. The paired loss changes versus parent were +0.000238108 (GARS), +0.000053034 (global) and -0.000997075 (uniform). GARS-minus-global loss was +0.000185075; GARS-minus-uniform was +0.001235184. GARS loss was higher than both spectrum-only baselines in all three paired seeds. Uniform had the lowest mean validation loss.
+
+**Cross-scale interpretation:** the approximately 40% physical A/B factor reduction with unchanged validation accuracy/F1 transfers to this 24-layer model in the tested RTE setup. However, GARS's mean loss advantage over uniform/global baselines observed on DeBERTa-v3-base does not transfer. The large-model results do not support a consistent GARS-specific validation-loss advantage or causal superiority.
+
+Detailed results are committed in `docs/v1_deberta_large_seeded_results.md`; the next-experiment priorities are updated in `docs/remaining_phase1_experiment_plan.md`.
+
+**Next actions:** inspect the three existing large-model `gradient_importance.json` files for the saved 50 optimizer-step profiles. If present, run the temporal analyzer with the large-model config and existing parent/pruned roots, without retraining. Then undertake the MRPC second-task replication, beginning with seed 42.
