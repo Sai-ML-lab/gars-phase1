@@ -7,6 +7,8 @@ import statistics
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from scipy.stats import rankdata
+
 from .diagnostics import spearman_rank_correlation
 
 
@@ -77,13 +79,13 @@ def analyze_stepwise_gradient_scores(
 
     rank_matrix = [
         {
-            layer: rank
-            for rank, layer in enumerate(
-                sorted(layer_ids, key=lambda item: (-row[layer_ids.index(item)], item)),
-                start=1,
-            )
+            layer: float(rank_values[index])
+            for index, layer in enumerate(layer_ids)
         }
-        for row in score_matrix
+        for rank_values in (
+            rankdata([-value for value in row], method="average")
+            for row in score_matrix
+        )
     ]
 
     pairwise_rhos: list[float] = []
