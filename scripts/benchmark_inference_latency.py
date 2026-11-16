@@ -8,8 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
-import random
+import shutil
 import statistics
 import time
 from importlib.metadata import PackageNotFoundError, version
