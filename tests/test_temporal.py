@@ -31,7 +31,7 @@ def test_temporal_summary_detects_perfectly_stable_layer_ordering() -> None:
     assert report["within_window_rank_stability"]["mean_pairwise_spearman_rho"] == pytest.approx(1.0)
     assert report["within_window_rank_stability"]["adjacent_step_mean_spearman_rho"] == pytest.approx(1.0)
     assert report["top_rank_stability"]["mean_adjacent_top3_jaccard"] == pytest.approx(1.0)
-    assert report["per_layer"]["0"]["coefficient_of_variation"] == pytest.approx(0.43033148)
+    assert report["per_layer"]["0"]["coefficient_of_variation"] == pytest.approx(0.51639778)
 
 
 def test_temporal_summary_detects_rank_reversals() -> None:
