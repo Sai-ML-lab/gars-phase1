@@ -118,6 +118,11 @@ def _validate_adapter_artifact(
 
     if method == "parent":
         metadata = _read_json(parent_root / f"seed_{seed}" / "run_metadata.json")
+        reload_report = _read_json(
+            parent_root / f"seed_{seed}" / "reload_validation.json"
+        )
+        if reload_report.get("reload_validation") != "passed":
+            raise RuntimeError(f"Parent adapter reload did not pass for seed {seed}.")
         revision = metadata.get("base_model_revision") or config_revision
         if revision != config_revision:
             raise ValueError(f"Parent seed {seed} has unexpected base revision {revision}.")
@@ -219,10 +224,11 @@ def _move_batches(
 def _forward_logits(
     model: torch.nn.Module,
     batch: dict[str, torch.Tensor],
+    validate_finite: bool = True,
 ) -> torch.Tensor:
     output = model(**batch)
     logits = output.logits
-    if not bool(torch.isfinite(logits).all().item()):
+    if validate_finite and not bool(torch.isfinite(logits).all().item()):
         raise RuntimeError("Non-finite logits during inference benchmark.")
     return logits
 
@@ -246,13 +252,13 @@ def _benchmark_mode(
                 total_padded_tokens += int(batch["attention_mask"].numel())
 
                 for _ in range(warmup_steps):
-                    _forward_logits(model, batch)
+                    _forward_logits(model, batch, validate_finite=True)
                 _synchronize(device)
 
                 for _ in range(repeats):
                     _synchronize(device)
                     start = time.perf_counter()
-                    _forward_logits(model, batch)
+                    _forward_logits(model, batch, validate_finite=False)
                     _synchronize(device)
                     timings.append(time.perf_counter() - start)
 
