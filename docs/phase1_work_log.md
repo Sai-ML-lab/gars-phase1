@@ -746,3 +746,26 @@ The cyclic alignment control is complete. The next experimental phase addresses 
 4. Consider a second task (GLUE MRPC) only if time and compute remain.
 
 **Verification status:** these scripts, tests and config have just been added. The student's earlier test pass predates these additions. Run full-tree Ruff and pytest after pulling before executing any new analysis or training. No new empirical result is claimed yet.
+
+
+## 16 November 2026 — fix mechanism-analysis projection-count regression
+
+The student ran the updated suite and reported 67 passed, 1 failed. The failing integration test showed: expected None adapted projections, got 24.
+
+Root cause: _load_seed_artifacts() accepted the numeric expected_modules count (24), but a local variable inside the policy loop reused the same name for the observed module-name set, initializing it to None. The first policy's module-count validation therefore compared 24 against None. The saved experimental artifacts were not at fault.
+
+**Fix committed:**
+- Renamed the local inventory variable to expected_module_names, preserving expected_modules as the configured numeric count.
+- Added an explicit regression test that accepts the correct 24-module fixture and rejects an incorrect expected count of 23 with a descriptive error.
+
+Commits:
+- 0439bf92 — fix variable shadowing in mechanism analysis.
+- 4a1ea8f2 — add configured projection-count regression test.
+
+**Next action:** pull main and rerun the failing test first, then all quality gates:
+
+\`\`\`bash
+python -m pytest -q tests/test_mechanism_analysis.py
+ruff check scripts src/gars tests experiments
+python -m pytest -q
+\`\`\`
