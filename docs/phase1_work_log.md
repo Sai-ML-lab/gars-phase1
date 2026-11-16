@@ -919,3 +919,48 @@ Paired mean loss changes against parent were +0.000305111 (GARS), +0.000289988 (
 Full MRPC results are committed in `docs/v1_mrpc_seeded_results.md`; the combined comparison is committed in `docs/phase1_cross_experiment_synthesis.md`; the plan now prioritizes no-retraining MRPC temporal/mechanism diagnostics and final report synthesis in `docs/remaining_phase1_experiment_plan.md`.
 
 **Next action:** inspect the 3 MRPC parent gradient artifacts for the final 50 per-step profiles. If present, run the temporal analyzer and cross-seed mechanism analyzer on existing parent/pruned artifacts. No further training run is currently recommended before Phase 1 report freeze.
+
+
+## 16 November 2026 — DeBERTa-v3-base / GLUE MRPC temporal and mechanism diagnostics completed
+
+The student supplied completed outputs from both temporal and cross-seed mechanism analysis on the existing MRPC parent/pruned artifacts. No retraining was required.
+
+**Temporal input verification:**
+- Seeds 42, 123 and 999 each contained 50 saved final-window gradient profiles.
+- The temporal analyzer completed and verified that the stepwise arithmetic means reproduce the stored layer-importance profiles.
+
+**Within-window temporal reliability:**
+- Mean all-pair rank Spearman rho across seeds: 0.89674897; sample SD 0.02835018.
+- Mean adjacent-step rank Spearman rho: 0.90138433; sample SD 0.03675804.
+- Per seed (all-pair / adjacent): 42 = 0.92039 / 0.93606; 123 = 0.90454 / 0.90524; 999 = 0.86532 / 0.86285.
+
+The layer-wise gradient ranking is relatively persistent over the captured final window for each MRPC seed. This is stronger average temporal rank stability than the observed DeBERTa-v3-large/RTE temporal pilot; the difference is descriptive and cannot be attributed to task alone because model scale also differs.
+
+**Instantaneous threshold clipping:**
+- Total observations: 1,800 (50 updates × 12 layers × 3 seeds).
+- Lower-bound hits: 30/1,800 (1.67%).
+- Upper-bound hits: 1,527/1,800 (84.83%).
+- Total clipped: 1,557/1,800 (86.50%).
+- Per-seed lower/upper counts: seed 42 = 5/525; seed 123 = 18/491; seed 999 = 7/511.
+
+The mechanism analyzer separately showed 29/36 mean-profile layer thresholds at the upper bound and zero at the lower bound. The temporal and mean-profile counts use different denominators and are reported separately. Instantaneous thresholds are diagnostic only; actual V1 allocation remains post-hoc using the final-window arithmetic-mean gradient profile.
+
+**Cross-seed profile reliability:**
+- Gradient importance (12 layers): mean pairwise rho 0.94638695; sample SD 0.01068199.
+- Module squared-spectral entropy (24 modules): 0.86144928; sample SD 0.04844917.
+- Layer-mean entropy (12 layers): 0.76223776; sample SD 0.12292584.
+
+**Cross-seed rank-allocation stability:**
+- GARS module ranks: mean pairwise rho 0.86284360; sample SD 0.07285983.
+- Global singular-value module ranks: 0.92928503; sample SD 0.02473938.
+- Uniform local-energy module ranks: 0.93771241; sample SD 0.03585270.
+GARS's discrete allocation is less stable across seeds than either spectrum-only method, despite high cross-seed stability of the gradient profile.
+
+**Depth-adjusted associations:**
+- Gradient importance vs layer-mean spectral entropy: raw mean rho -0.85081585; partial rho controlling depth -0.13909456 (sample SD 0.35500788).
+- Gradient importance vs GARS-minus-uniform layer-rank uplift: raw mean rho +0.61902592; depth-adjusted partial rho +0.56631062 (sample SD 0.10105645).
+The raw gradient/entropy association is strongly attenuated after layer-depth adjustment. The positive gradient/rank-uplift association remains in this descriptive analysis, but does not establish causality or predictive advantage. All association summaries average only three seeds and 12 blocks per seed; no significance claims are made.
+
+Detailed findings are committed in `docs/v1_mrpc_temporal_mechanism_results.md`; the cross-experiment synthesis and remaining plan were updated in `docs/phase1_cross_experiment_synthesis.md` and `docs/remaining_phase1_experiment_plan.md`.
+
+**Recommendation:** freeze experiments and move to report assembly. No further training or validation-set tuning is recommended before Phase 1 submission unless required by the mentor/rubric.
