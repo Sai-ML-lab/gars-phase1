@@ -121,3 +121,15 @@ def test_load_seed_artifacts_rejects_mismatched_revision(tmp_path: Path) -> None
 
     with pytest.raises(ValueError, match="base revision"):
         _load_seed_artifacts(42, parent_root, pruned_root)
+
+
+def test_load_seed_artifacts_enforces_configured_projection_count(tmp_path: Path) -> None:
+    parent_root, pruned_root = _make_seed_artifacts(tmp_path, 42)
+
+    with pytest.raises(ValueError, match="expected 23 adapted projections, got 24"):
+        _load_seed_artifacts(
+            42,
+            parent_root,
+            pruned_root,
+            expected_modules=23,
+        )
