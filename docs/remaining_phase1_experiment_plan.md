@@ -109,5 +109,7 @@ Across seeds, all methods reproduce parent accuracy (0.867629 mean) and macro-F1
 
 Full values and paired differences are recorded in [v1_deberta_large_seeded_results.md](v1_deberta_large_seeded_results.md).
 
-**Next:** inspect the large-model parent gradient artifacts for saved 50-step profiles and, if present, run the temporal analyzer using the existing large-model parent/pruned roots. Then proceed to MRPC as the second-task replication, beginning with a seed-42 feasibility gate.
+**Temporal artifact check:** the student checked all three large-model `gradient_importance.json` files and the stepwise-field count printed `None` for each seed. The stored artifacts do not include the per-update traces. The current GitHub trainer does include the capture append and serialization code; the local run artifacts were generated with an earlier trainer version or came from older output directories. This does not invalidate the saved mean importance profiles, parent validation, pruning exports or the nine successful reload checks. No temporal stability claim can be made for these large-model runs.
+
+**Next:** proceed to MRPC with seed 42 using the current instrumented trainer, after locally confirming both stepwise capture and serialization lines exist. Avoid rerunning the completed large-model experiment solely to recover optional temporal traces.
 
