@@ -769,3 +769,20 @@ python -m pytest -q tests/test_mechanism_analysis.py
 ruff check scripts src/gars tests experiments
 python -m pytest -q
 \`\`\`
+
+
+## 16 November 2026 — quality gates pass; historical temporal gradients unavailable
+
+The student reported that the full local test suite passes: 69 passed in 3.69 seconds.
+
+The student then ran scripts/analyze_gars_gradient_temporal_stability.py. It stopped at seed 42 with the intended missing-data error: the historical gradient_importance.json does not contain saved stepwise gradient scores. The original parent artifacts therefore contain only the final-window arithmetic mean and accumulator state, not the 50 per-update layer profiles. Temporal rank stability, CV and within-window drift cannot be computed from these old outputs.
+
+The current trainer writes stepwise_importance_by_optimizer_step, so a separate instrumented rerun could produce these diagnostics. However, this would be a new training replication, not a retrospective analysis of the original V1 runs. For internally matched temporal threshold analysis, train into a separate parent output root and generate corresponding pruning allocations into a separate pruned output root; do not combine fresh gradient traces with the historical V1 calibrated allocation.
+
+**Revised order:**
+1. Run latency smoke test and full benchmark from existing parent/pruned adapters. This directly addresses the proposal's latency objective without retraining.
+2. Run DeBERTa-v3-large/RTE starting with seed 42, then expand to three seeds only if the feasibility run is successful.
+3. Consider a full three-seed instrumented base/RTE replication for temporal reliability if time/compute remain.
+4. Consider MRPC only after the three higher-priority activities.
+
+The revised plan is recorded in docs/remaining_phase1_experiment_plan.md. The DeBERTa-v3-large pinned revision was checked against the Hugging Face config page; it specifies hidden size 1024 and 24 layers.
