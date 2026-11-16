@@ -477,7 +477,9 @@ def main() -> None:
         raise ValueError("Provide unique seeds.")
     if not args.methods or len(set(args.methods)) != len(args.methods):
         raise ValueError("Provide unique methods.")
-    if any(size < 1 for size in args.batch_sizes) or len(set(args.batch_sizes)) != len(args.batch_sizes):
+    if any(size < 1 for size in args.batch_sizes) or (
+        len(set(args.batch_sizes)) != len(args.batch_sizes)
+    ):
         raise ValueError("Batch sizes must be positive and unique.")
     if args.batches_per_size < 1 or args.warmup_steps < 1 or args.repeats < 5:
         raise ValueError("Require batches-per-size >= 1, warmup >= 1 and repeats >= 5.")
