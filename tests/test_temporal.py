@@ -28,8 +28,9 @@ def test_temporal_summary_detects_perfectly_stable_layer_ordering() -> None:
 
     assert report["n_steps"] == 4
     assert report["mean_profile_reproduced"] is True
-    assert report["within_window_rank_stability"]["mean_pairwise_spearman_rho"] == pytest.approx(1.0)
-    assert report["within_window_rank_stability"]["adjacent_step_mean_spearman_rho"] == pytest.approx(1.0)
+    stability = report["within_window_rank_stability"]
+    assert stability["mean_pairwise_spearman_rho"] == pytest.approx(1.0)
+    assert stability["adjacent_step_mean_spearman_rho"] == pytest.approx(1.0)
     assert report["top_rank_stability"]["mean_adjacent_top3_jaccard"] == pytest.approx(1.0)
     assert report["per_layer"]["0"]["coefficient_of_variation"] == pytest.approx(0.51639778)
 
