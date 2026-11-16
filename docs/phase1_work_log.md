@@ -890,3 +890,32 @@ PY
 ```
 
 After successful dataset resolution, rerun the MRPC seed-42 parent training command using the updated config. No existing RTE checkpoints or result artifacts need to be regenerated.
+
+
+## 16 November 2026 — DeBERTa-v3-base / GLUE MRPC three-seed study completed
+
+The student supplied the completed three-seed aggregate for seeds 42, 123 and 999.
+
+**Provenance and physical budget:**
+- All seeds used base revision `8ccc9b6f36199bec6961081d44eb72fb3f7353f3`.
+- Parent physical LoRA A/B factor parameters: 1,179,648.
+- All three policies and all three seeds achieved 708,096 physical A/B parameters.
+- Matched-budget reduction: 39.9739583%.
+- All nine policy/seed adapter reload validations passed.
+- MRPC validation split: 408 examples per seed.
+
+**Three-seed means ± sample SD:**
+- Parent: accuracy 0.897059 ± 0.004245; macro-F1 0.880135 ± 0.003305; loss 0.267556 ± 0.011071.
+- GARS: accuracy 0.897876 ± 0.002830; macro-F1 0.880991 ± 0.001823; loss 0.267861 ± 0.011082.
+- Global singular-value: accuracy 0.897059 ± 0.004245; macro-F1 0.880135 ± 0.003305; loss 0.267846 ± 0.010832.
+- Uniform local energy: accuracy 0.897876 ± 0.002830; macro-F1 0.880991 ± 0.001823; loss 0.267710 ± 0.010849.
+
+GARS and uniform local-energy metrics match per seed for accuracy/F1. Their small aggregate gain over parent is entirely due to seed 42 (one additional correct validation example and a corresponding macro-F1 increase); seeds 123 and 999 are unchanged against parent. Global singular-value pruning matches parent accuracy/F1 on all seeds.
+
+Paired mean loss changes against parent were +0.000305111 (GARS), +0.000289988 (global) and +0.000154162 (uniform). GARS-minus-global loss was +0.000015124; GARS-minus-uniform was +0.000150949. Seed-level differences are mixed and small. No significance or superiority claim is made.
+
+**Cross-experiment interpretation:** the 39.974% physical A/B factor reduction transfers to MRPC under the frozen base-model configuration. Combined with the two RTE model scales, the three experiments support feasibility across the tested tasks and model scales. However, the GARS loss advantage seen on base/RTE is not reproduced on large/RTE or base/MRPC. The evidence does not establish a general GARS-specific loss advantage over spectrum-only methods.
+
+Full MRPC results are committed in `docs/v1_mrpc_seeded_results.md`; the combined comparison is committed in `docs/phase1_cross_experiment_synthesis.md`; the plan now prioritizes no-retraining MRPC temporal/mechanism diagnostics and final report synthesis in `docs/remaining_phase1_experiment_plan.md`.
+
+**Next action:** inspect the 3 MRPC parent gradient artifacts for the final 50 per-step profiles. If present, run the temporal analyzer and cross-seed mechanism analyzer on existing parent/pruned artifacts. No further training run is currently recommended before Phase 1 report freeze.
