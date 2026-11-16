@@ -811,3 +811,17 @@ All methods retained parent accuracy and macro-F1 at reported precision. The pai
 Detailed results are committed in `docs/v1_deberta_large_seeded_results.md`; the next-experiment priorities are updated in `docs/remaining_phase1_experiment_plan.md`.
 
 **Next actions:** inspect the three existing large-model `gradient_importance.json` files for the saved 50 optimizer-step profiles. If present, run the temporal analyzer with the large-model config and existing parent/pruned roots, without retraining. Then undertake the MRPC second-task replication, beginning with seed 42.
+
+
+## 16 November 2026 — large-model temporal trace check returned None
+
+The student checked all three DeBERTa-v3-large/RTE parent `gradient_importance.json` files. The probe returned `None` for the number of saved `stepwise_importance_by_optimizer_step` observations for each seed, confirming that the key is absent or not a list in these artifacts.
+
+The current GitHub `experiments/train_parent_rte.py` implementation:
+- initializes `stepwise_gradient_scores` before training;
+- appends a per-layer importance profile after each captured optimizer-step gradient update in the final window;
+- serializes the list as `stepwise_importance_by_optimizer_step` in `gradient_importance.json`.
+
+The local large-model parent artifacts were therefore generated with an earlier trainer version or the output directories point to older run artifacts. The absence of the stepwise field prevents temporal analysis, but does not invalidate the saved arithmetic-mean layer importance profiles, parent validation, physical pruning results or successful reload validations. Do not claim within-window temporal reliability from these runs.
+
+Decision: do not rerun all three large-model seeds solely to recover optional temporal data. Move to the MRPC second-task replication, ensuring the local trainer contains both the capture append and JSON serialization code before starting. A fresh MRPC run should produce stepwise traces; optional temporal analysis can be performed on that new run if useful.
