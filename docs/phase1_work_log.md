@@ -718,3 +718,31 @@ The next work package is designed to address the proposal's remaining evidence g
 - python -m pytest -q
 
 The previous user-reported test pass predates these follow-on changes and does not verify the new benchmark, temporal analysis or depth-generalization code. No latency, MRPC or large-model result is claimed yet.
+
+
+## 16 November 2026 — next experiment package prepared
+
+The cyclic alignment control is complete. The next experimental phase addresses the remaining evidence gaps: temporal reliability of the gradient signal, measured inference latency/throughput, and a second model scale.
+
+**Added temporal gradient diagnostics:**
+- src/gars/temporal.py analyzes the per-step layer-score rankings across the final 50 optimizer updates, including all-pairs/lagged rank stability, adjacent top-rank stability, per-layer coefficient of variation and score drift.
+- scripts/analyze_gars_gradient_temporal_stability.py reads the existing parent artifacts and checks that the saved stepwise scores reproduce the stored final-window arithmetic means. It also measures per-step threshold clipping using the existing calibrated V1 tau-base. This requires no model retraining if the historical gradient JSON files contain the stepwise field.
+- tests/test_temporal.py covers stable rankings, rank reversals, inconsistent mean profiles and layer inventory changes.
+
+**Added inference benchmark:**
+- scripts/benchmark_inference_latency.py benchmarks parent/GARS/uniform/global adapters in unmerged and merged modes at batch sizes 1, 8 and 32 on representative tokenized RTE validation batches.
+- Timed forwards synchronize the accelerator. Tokenization, collation, host-to-device transfer, model loading and merge time are excluded from forward latency; merge/unmerge logit equivalence is checked before timing.
+- Parent and pruned adapter revisions/reload reports are checked before benchmarking. The script writes per-run progress/results and a final aggregate report.
+
+**Added second-scale experiment config:**
+- configs/v1_deberta_v3_large_rte.json defines a 24-layer DeBERTa-v3-large/RTE follow-up using the same rank/alpha, target projections, beta, target parameter fraction, three seeds, epochs and effective batch size. The per-device batch and accumulation are 4 × 4, matching the base experiment's effective batch size 16.
+- The pruning exporter and parent validator accept the configured number of Transformer layers, so the same train/validate/prune/aggregate workflow can be reused for 24 layers.
+- The model revision is pinned in the config; verify its model config resolves to hidden size 1024 and 24 layers before beginning training.
+
+**Priority plan:** docs/remaining_phase1_experiment_plan.md documents the remaining work in priority order:
+1. Run temporal diagnostics if stepwise gradients are present in existing parent artifacts; otherwise decide whether a targeted instrumented rerun is warranted.
+2. Measure merged/unmerged latency and throughput across the four existing adapter variants and three seeds.
+3. Run the second-scale DeBERTa-v3-large/RTE study, beginning with seed 42 as a smoke/feasibility gate before seeds 123 and 999.
+4. Consider a second task (GLUE MRPC) only if time and compute remain.
+
+**Verification status:** these scripts, tests and config have just been added. The student's earlier test pass predates these additions. Run full-tree Ruff and pytest after pulling before executing any new analysis or training. No new empirical result is claimed yet.
