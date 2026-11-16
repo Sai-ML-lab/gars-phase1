@@ -37,6 +37,10 @@ A diagnostic recomputation of thresholds at each captured step, using each seed'
 
 See [the detailed temporal gradient diagnostic report](v1_deberta_large_temporal_gradient_results.md). Optimizer-step pairs are sequential/autocorrelated; these descriptive correlations are not independent samples and do not support p-values or significance claims.
 
+## MRPC dataset identifier compatibility fix
+
+The initial seed-42 MRPC attempt stopped during `load_dataset`, before training began. The MRPC config used the legacy unnamespaced identifier `glue`, which the current strict Hugging Face URI parser rejects when it constructs an `hf://datasets/glue@...` URI. The three GLUE experiment configs now use the canonical repository ID `nyu-mll/glue`; no task subset, model revision or training/policy hyperparameter was changed. This canonical public dataset repository includes both MRPC and RTE. See the work-log entry for the diagnostic check to run before restarting training.
+
 ## Priority 1 — second task: DeBERTa-v3-base on GLUE MRPC
 
 The MRPC config already exists at `configs/v1_deberta_mrpc.json`. It keeps the base model revision, LoRA rank/alpha, target modules, training schedule, final 50-step gradient capture, beta and physical budget consistent with the RTE base experiment while changing the task to MRPC.
