@@ -123,3 +123,34 @@ Do not prioritize dynamic in-training pruning, optimizer-state surgery, a large 
 - A target is not an achievement: report the actual accuracy drop and actual parameter reduction. If a scale misses the ≤1 percentage-point accuracy target, state that plainly.
 - Latency is a separate measurement from factor-parameter reduction. Report observed values, not inferred speedups.
 - Keep all claims limited to the models, tasks, seeds, devices and splits actually measured.
+
+
+## 16 November update — temporal capture availability and revised priorities
+
+The temporal analyzer was run against the historical V1 parent outputs and stopped at seed 42 because the saved gradient artifact has no stepwise_importance_by_optimizer_step field. The existing parent results therefore support the 50-step arithmetic-mean gradient profile and cross-seed profile comparisons, but not within-window temporal reliability. Do not report temporal stability from these historical files.
+
+The full test suite on the student's Mac now passes (69 passed). The temporal script's explicit missing-data error is expected and does not invalidate those tests or the original V1 results.
+
+**Revise the immediate execution order:**
+
+1. **Latency benchmark first.** It reuses existing trained parent/pruned adapters and directly measures the proposal's engineering objective. Run the one-seed smoke test, then the full three-seed benchmark.
+2. **Second-scale DeBERTa-v3-large/RTE second.** Start with seed 42 as a feasibility gate, validate and prune before extending to seeds 123 and 999.
+3. **Temporal reliability as an optional instrumented replication.** If time and compute remain after the first two tasks, rerun the base/RTE parent training into a *new* directory with the current trainer, which stores the final-window stepwise scores. Do not overwrite the original parent results. For a consistent temporal analysis, build matching GARS allocations from these newly trained parents in another new directory, then point the temporal analyzer to those matched parent/pruned roots.
+
+Optional instrumented base/RTE rerun commands:
+
+\`\`\`bash
+python experiments/train_parent_rte.py --config configs/v1_deberta_rte.json --seed 42 --device mps --output-root results/v1_parent_rte_temporal
+python experiments/train_parent_rte.py --config configs/v1_deberta_rte.json --seed 123 --device mps --output-root results/v1_parent_rte_temporal
+python experiments/train_parent_rte.py --config configs/v1_deberta_rte.json --seed 999 --device mps --output-root results/v1_parent_rte_temporal
+
+python scripts/run_pruning_comparison.py --config configs/v1_deberta_rte.json --seed 42 --device mps --parent-root results/v1_parent_rte_temporal --output-root results/v1_pruned_rte_temporal
+python scripts/run_pruning_comparison.py --config configs/v1_deberta_rte.json --seed 123 --device mps --parent-root results/v1_parent_rte_temporal --output-root results/v1_pruned_rte_temporal
+python scripts/run_pruning_comparison.py --config configs/v1_deberta_rte.json --seed 999 --device mps --parent-root results/v1_parent_rte_temporal --output-root results/v1_pruned_rte_temporal
+
+python scripts/analyze_gars_gradient_temporal_stability.py --config configs/v1_deberta_rte.json --parent-root results/v1_parent_rte_temporal --pruned-root results/v1_pruned_rte_temporal --output results/v1_pruned_rte_temporal/temporal_gradient_analysis.json
+\`\`\`
+
+The temporal rerun is a supplemental replicated training study, not a reconstruction of the historical V1 training trajectory. Report it separately and compare its final-window temporal properties without replacing the original V1 results.
+
+The DeBERTa-v3-large configuration uses the full pinned Hugging Face revision 8869586e1c6f5654a9a2a5c517fe710e24a488d0. Hugging Face's pinned config at this revision reports hidden_size 1024 and num_hidden_layers 24. https://huggingface.co/microsoft/deberta-v3-large/blob/8869586e1c6f5654a9a2a5c517fe710e24a488d0/config.json
