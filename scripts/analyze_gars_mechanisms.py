@@ -160,7 +160,7 @@ def _load_seed_artifacts(
         )
 
     methods: dict[str, Any] = {}
-    expected_modules: set[str] | None = None
+    expected_module_names: set[str] | None = None
     entropy_reference: dict[str, float] | None = None
     layer_reference: dict[str, int] | None = None
     expected_budget: int | None = None
@@ -194,9 +194,9 @@ def _load_seed_artifacts(
                 f"Seed {seed}/{method}: expected {expected_modules} adapted projections, "
                 f"got {len(modules)}."
             )
-        if expected_modules is None:
-            expected_modules = modules
-        elif modules != expected_modules:
+        if expected_module_names is None:
+            expected_module_names = modules
+        elif modules != expected_module_names:
             raise ValueError(f"Seed {seed}: module inventory differs across policies.")
 
         entropy: dict[str, float] = {}
