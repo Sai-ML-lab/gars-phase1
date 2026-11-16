@@ -825,3 +825,36 @@ The current GitHub `experiments/train_parent_rte.py` implementation:
 The local large-model parent artifacts were therefore generated with an earlier trainer version or the output directories point to older run artifacts. The absence of the stepwise field prevents temporal analysis, but does not invalidate the saved arithmetic-mean layer importance profiles, parent validation, physical pruning results or successful reload validations. Do not claim within-window temporal reliability from these runs.
 
 Decision: do not rerun all three large-model seeds solely to recover optional temporal data. Move to the MRPC second-task replication, ensuring the local trainer contains both the capture append and JSON serialization code before starting. A fresh MRPC run should produce stepwise traces; optional temporal analysis can be performed on that new run if useful.
+
+
+## 16 November 2026 — DeBERTa-v3-large final-window temporal diagnostics completed
+
+The student supplied the temporal-analysis output for the existing DeBERTa-v3-large/RTE parent runs, seeds 42, 123 and 999. The analysis completed without retraining.
+
+**Capture integrity:**
+- All three seeds contain 50 per-step gradient profiles from optimizer steps 419–468.
+- For each seed, the arithmetic mean of the stepwise profiles reproduces the stored `importance_by_transformer_block` values.
+- The diagnostic uses the seed-specific calibrated GARS `tau_base`, beta 0.5 and threshold bounds [0.80, 0.99].
+
+**Within-window rank stability:**
+- Mean all-pair Spearman rho across seed-specific means: 0.8243916; sample SD 0.1050704.
+- Mean adjacent-step Spearman rho: 0.8383141; sample SD 0.0867266.
+- Seed all-pair values: 0.8373934 (42), 0.7134254 (123), 0.9223560 (999).
+- Seed adjacent-step values: 0.8460337 (42), 0.7479858 (123), 0.9209228 (999).
+- Mean adjacent top-3 Jaccard values: 0.2918367 (42), 0.3061224 (123), 0.6142857 (999).
+
+The complete layer ranking is moderately to strongly persistent on average, but temporal stability varies materially by seed. The top-three layer set is less stable than the full ranking. The descriptive step pairs are sequential/autocorrelated and are not independent samples; no significance claims are made.
+
+**Instantaneous threshold saturation diagnostic:**
+Each seed contributes 1,200 step/layer thresholds (50 steps × 24 layers), for 3,600 total:
+- Lower-bound hits: 901/3,600 (25.03%).
+- Upper-bound hits: 2,061/3,600 (57.25%).
+- Total clipped to either boundary: 2,962/3,600 (82.28%).
+
+Per-seed total clipping fractions were 81.08% (42), 77.00% (123) and 88.75% (999). This diagnostic recomputes thresholds from each instantaneous profile using the fixed seed-specific calibrated tau_base. It does not change the actual V1 allocation, which uses the arithmetic-mean profile, and it does not indicate dynamic pruning during training. It characterizes saturation of the bounded threshold map.
+
+**Interpretation:** final-window gradient rankings show persistent layer-level signal on average, with meaningful seed heterogeneity and weaker stability among the top-three layers. The high clipping frequency is an important implementation characteristic to disclose. These data do not establish a causal benefit of gradient conditioning or explain validation performance by themselves.
+
+Full values and claims boundaries are committed in `docs/v1_deberta_large_temporal_gradient_results.md`; experiment priorities are updated in `docs/remaining_phase1_experiment_plan.md`.
+
+**Next action:** begin the GLUE MRPC/base-model replication, seed 42 first, and use parent reload plus all three policy-export validations as feasibility gates before proceeding to seeds 123 and 999.
