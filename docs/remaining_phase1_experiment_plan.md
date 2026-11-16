@@ -116,4 +116,35 @@ GARS and uniform local energy had identical per-seed accuracy/F1; their small me
 
 The canonical dataset identifier `nyu-mll/glue` was used after the legacy alias `glue` failed under the local strict Hugging Face URI parser. The identifier fix changed no task subset or training/policy hyperparameter.
 
-**Next action:** run the no-retraining temporal and mechanism diagnostics on the MRPC artifacts; then freeze experiments and finalize the Phase 1 report.
+**Next action:** freeze the experiments and finalize the Phase 1 report. The MRPC temporal and mechanism diagnostics have now completed; no further training run is currently recommended.
+
+
+## 16 November 2026 — MRPC temporal and mechanism diagnostics completed
+
+The student supplied successful output from both `analyze_gars_gradient_temporal_stability.py` and `analyze_gars_mechanisms.py` for the existing MRPC artifacts. All three seeds had 50 final-window profiles and the temporal analyzer completed without retraining.
+
+- Mean within-seed all-pair temporal rank rho: 0.896749 (sample SD 0.028350).
+- Mean adjacent-step rank rho: 0.901384 (sample SD 0.036758).
+- Cross-seed raw gradient profile Spearman rho: 0.946387 (sample SD 0.010682).
+- Cross-seed module spectral-entropy rho: 0.861449 (sample SD 0.048449).
+- Cross-seed GARS module-rank allocation rho: 0.862844, compared with 0.929285 for global singular-value and 0.937712 for uniform local energy.
+- Instantaneous thresholds hit the upper clipping bound in 1,527/1,800 observations (84.83%), lower bound in 30/1,800 observations (1.67%), total boundary clipping 86.50%.
+- Mean-profile thresholds used by the actual V1 allocation hit the upper bound in 29/36 layer/seed cases (80.56%); none hit the lower bound.
+
+The raw gradient/spectral-entropy association (-0.8508 mean rho) weakened to -0.1391 after controlling descriptively for layer depth (sample SD 0.3550). The gradient association with GARS-minus-uniform layer-rank uplift remained positive after depth adjustment (+0.5663 mean partial rho; sample SD 0.1011). These are descriptive correlations over 12 layers and three seeds, not significance tests or causal evidence.
+
+Detailed outputs are recorded in [v1_mrpc_temporal_mechanism_results.md](v1_mrpc_temporal_mechanism_results.md), and combined with the previous temporal analysis in [phase1_cross_experiment_synthesis.md](phase1_cross_experiment_synthesis.md).
+
+## Phase 1 experiment freeze recommendation
+
+The planned three-seed experiments on base/RTE, large/RTE and base/MRPC are complete. The three matched-budget studies achieved approximately 39.974% physical LoRA A/B factor reduction, and all 27 pruning exports passed reload validation. Latency and temporal/mechanism analyses are complete for the planned scope. No additional model training or validation-set tuning is recommended before report submission.
+
+Remaining work is report assembly and quality review:
+1. Ensure the submitted methodology and results distinguish physical A/B factor parameter reduction from whole-model size, total compute and inference latency.
+2. Include the cross-model/task table and disclose that GARS does not consistently outperform spectrum-only baselines on validation loss.
+3. Describe the threshold clipping saturation and lower cross-seed rank-allocation stability of GARS as limitations/mechanism observations.
+4. State the latency benchmark boundary and its workload-dependent findings; do not claim the 15–20% latency target was met.
+5. State that all metrics are from validation splits and that the three-seed statistics are descriptive, not significance tests.
+6. Run final local code quality gates after pulling all changes: `ruff check scripts src/gars tests experiments` and `python -m pytest -q`.
+
+Do not add further tuning or experiments unless required by the mentor or rubric. The priority is a coherent, transparent report supported by the completed evidence.
