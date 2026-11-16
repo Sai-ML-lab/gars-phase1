@@ -2,68 +2,32 @@
 
 **Planning date:** 16 November 2026  
 **Submission deadline:** 3 December 2026, 5:30 PM IST  
-**Current completed evidence:** three-seed DeBERTa-v3-base/RTE parent and matched-budget pruning study; gradient/spectral diagnostics; beta sensitivity; 33-export cyclic alignment control.
+**Completed evidence:** three-seed DeBERTa-v3-base/RTE parent and matched-budget pruning study; gradient/spectral diagnostics; beta sensitivity; 33-export cyclic alignment control; full three-seed merged/unmerged inference-latency benchmark.
 
 ## Research gaps that remain
 
-The current empirical study covers one model scale and one task. It demonstrates approximately 40% reduction in LoRA A/B factor parameters on the DeBERTa-v3-base/RTE pilot, but it does not yet establish the proposal's multi-scale objective. No inference latency or serving-throughput result has been measured. The existing mechanism work also lacks a temporal reliability result unless the individual final-window optimizer-step gradients exist in the local parent artifacts.
+The empirical study currently covers one model scale and one task. The DeBERTa-v3-base/RTE study demonstrates approximately 40% reduction in physical LoRA A/B factor parameters, while retaining parent-level validation accuracy and macro-F1 at the reported precision. It does not yet establish model-scale transfer.
 
-## Priority order
+Inference latency has now been measured, but the results do **not** demonstrate a robust 15–20% improvement. GARS is faster than the parent in all three seeds for unmerged batch size 8 (mean per-seed latency reduction approximately 10.1%), but it is slower in all three seeds for merged batch size 32 (mean per-seed slowdown approximately 9.0%). Other conditions are mixed or modest. See [the full latency benchmark report](v1_latency_benchmark_results.md).
 
-### Priority 1 — temporal gradient-signal reliability (no retraining if saved stepwise fields exist)
+The existing mechanism work also lacks a temporal reliability result: historical V1 gradient artifacts contain only final-window means, not the individual per-step layer scores.
 
-The current parent trainer writes the field stepwise_importance_by_optimizer_step in gradient_importance.json. The temporal analyzer checks that the arithmetic mean of all stored steps exactly reproduces the existing V1 block-importance profile, then measures:
-- all-pairs and lagged rank stability over the final 50 optimizer updates;
-- adjacent-step top-1/top-3 stability;
-- per-layer coefficient of variation and normalized-importance drift;
-- the per-step threshold dynamics obtained using the fixed V1 calibrated tau_base, beta and clipping limits.
+## Current priority order
 
-Run:
+### Priority 1 — second model scale: DeBERTa-v3-large on RTE
 
-\`\`\`bash
-python scripts/analyze_gars_gradient_temporal_stability.py
-\`\`\`
+This is the most important remaining scientific experiment. Use the same RTE task, target projections, LoRA rank/alpha, beta, squared-energy criterion and physical-budget objective to test model-scale transfer while limiting task-related confounding.
 
-If historical parent artifacts do not contain the stepwise field, the script stops with a clear error. In that case, do not silently infer temporal stability from the saved means. Decide whether to rerun one or all parent seeds with the current trainer; this can be a targeted follow-up rather than an automatic rerun.
-
-### Priority 2 — merged/unmerged inference latency and throughput
-
-Compare the same four adapter types on each seed:
-- unpruned parent;
-- GARS;
-- uniform local squared-energy;
-- global singular-value cutoff.
-
-For both unmerged PEFT and merged weights, use batch sizes 1, 8 and 32, with three representative sequence-length batches from the RTE validation split. Timed forwards are synchronized on MPS. Tokenization, collation, host-to-device transfer, model loading and merge time are excluded from the forward-latency statistic and separately identified where relevant. Merged/unmerged logits are checked for equivalence before timing.
-
-Smoke test first:
-
-\`\`\`bash
-python scripts/benchmark_inference_latency.py \\
-  --device mps --seeds 42 --warmup-steps 3 --repeats 10 \\
-  --batches-per-size 2 --output-root results/v1_latency_smoke
-\`\`\`
-
-Then run the full three-seed benchmark with defaults:
-
-\`\`\`bash
-python scripts/benchmark_inference_latency.py --device mps
-\`\`\`
-
-The result is a hardware-specific forward benchmark, not a production-serving claim. Report batch-1 latency and batch-8/32 throughput separately. Do not assume a 40% adapter-factor reduction yields a proportional latency reduction.
-
-### Priority 3 — second model scale: DeBERTa-v3-large on RTE
-
-Use the same RTE task, target projections, LoRA rank/alpha, beta, squared-energy criterion and physical-budget objective to isolate model-scale transfer. The added config uses:
-- microsoft/deberta-v3-large, pinned to revision 8869586e1c6f5654a9a2a5c517fe710e24a488d0;
+The config uses:
+- `microsoft/deberta-v3-large`, pinned to revision `8869586e1c6f5654a9a2a5c517fe710e24a488d0`;
 - 24 Transformer layers and hidden size 1024;
 - rank 32, alpha 64, query/value projections;
 - batch size 4 × accumulation 4, preserving the same effective batch size of 16 as the base experiment;
 - 3 epochs, 50 final optimizer-step gradient captures, and the 60% physical A/B factor target.
 
-Start with seed 42 only:
+First verify the pinned config:
 
-\`\`\`bash
+```bash
 python - <<'PY'
 from transformers import AutoConfig
 
@@ -74,72 +38,64 @@ print("num_hidden_layers:", config.num_hidden_layers)
 assert config.hidden_size == 1024
 assert config.num_hidden_layers == 24
 PY
+```
 
-python experiments/train_parent_rte.py \\
-  --config configs/v1_deberta_v3_large_rte.json \\
-  --seed 42 --device mps \\
+Start with seed 42 only:
+
+```bash
+python experiments/train_parent_rte.py \
+  --config configs/v1_deberta_v3_large_rte.json \
+  --seed 42 --device mps \
   --output-root results/v1_parent_deberta_large_rte
-\`\`\`
+```
 
 Validate the parent before pruning:
 
-\`\`\`bash
-python scripts/validate_parent_adapter.py \\
-  --config configs/v1_deberta_v3_large_rte.json \\
-  --seed-dir results/v1_parent_deberta_large_rte/seed_42 \\
+```bash
+python scripts/validate_parent_adapter.py \
+  --config configs/v1_deberta_v3_large_rte.json \
+  --seed-dir results/v1_parent_deberta_large_rte/seed_42 \
   --device mps
 
-python scripts/run_pruning_comparison.py \\
-  --config configs/v1_deberta_v3_large_rte.json \\
-  --seed 42 --device mps \\
-  --parent-root results/v1_parent_deberta_large_rte \\
+python scripts/run_pruning_comparison.py \
+  --config configs/v1_deberta_v3_large_rte.json \
+  --seed 42 --device mps \
+  --parent-root results/v1_parent_deberta_large_rte \
   --output-root results/v1_pruned_deberta_large_rte
-\`\`\`
+```
 
-Only proceed to seeds 123 and 999 after seed 42 finishes training, reload validation and all three physical exports successfully. Then aggregate:
+Only proceed to seeds 123 and 999 after seed 42 completes training, parent reload validation and all three physical exports successfully. Then aggregate:
 
-\`\`\`bash
-python scripts/aggregate_pruning_results.py \\
-  --results-root results/v1_pruned_deberta_large_rte \\
-  --seeds 42 123 999 \\
+```bash
+python scripts/aggregate_pruning_results.py \
+  --results-root results/v1_pruned_deberta_large_rte \
+  --seeds 42 123 999 \
   --output results/v1_pruned_deberta_large_rte/aggregate.json
-\`\`\`
+```
 
-This second-scale experiment is the most important additional scientific run because the existing evidence currently covers only DeBERTa-v3-base. It uses the same task to reduce confounding from task changes.
+Each scale result must include its parent baseline, all three policies, paired seed metrics, physical A/B parameter counts, reload status and exact pinned base revision. If compute or deadline pressure prevents all three seeds, report the completed pilot as such; do not present one seed as a three-seed result.
 
-### Priority 4 — second task (only after scale and latency experiments)
+### Priority 2 — temporal gradient-signal reliability (optional instrumented replication)
 
-If compute and time remain, repeat the base-scale parent/pruning study on GLUE MRPC using the same sentence-pair training pipeline, same three seeds and same matched physical budget. This tests whether the result is task-specific. It is useful but secondary to demonstrating a second model scale and measuring the proposal's latency objective.
+The current parent trainer writes `stepwise_importance_by_optimizer_step` in `gradient_importance.json`. The temporal analyzer checks that the arithmetic mean of the stored scores reproduces the saved final-window block-importance profile, then measures:
+- all-pairs and lagged rank stability over the final 50 optimizer updates;
+- adjacent-step top-1/top-3 stability;
+- per-layer coefficient of variation and normalized-importance drift;
+- per-step threshold dynamics using the fixed V1 calibrated threshold base, beta and clipping limits.
 
-### Not recommended before submission
+The historical parent outputs do not contain this field. The earlier run of:
 
-Do not prioritize dynamic in-training pruning, optimizer-state surgery, a large random-permutation search, more beta tuning, or more seeds on the existing base RTE setup before completing the above. They expand scope without addressing the two largest current evidence gaps: multi-scale transfer and measured inference performance.
+```bash
+python scripts/analyze_gars_gradient_temporal_stability.py
+```
 
-## Decision gates and reporting discipline
+therefore stopped at seed 42 with an explicit missing-data error. Do not infer temporal reliability from the saved means.
 
-- Keep binaries, checkpoints and generated benchmark data local and ignored by Git. Commit source code, configs and reports only.
-- Do not overwrite existing result directories. Use separate output roots for smoke tests and full runs.
-- Each model-scale result must show its parent baseline, all three policies, paired seed metrics, physical A/B parameter counts, reload status and the exact pinned base revision.
-- A target is not an achievement: report the actual accuracy drop and actual parameter reduction. If a scale misses the ≤1 percentage-point accuracy target, state that plainly.
-- Latency is a separate measurement from factor-parameter reduction. Report observed values, not inferred speedups.
-- Keep all claims limited to the models, tasks, seeds, devices and splits actually measured.
-
-
-## 16 November update — temporal capture availability and revised priorities
-
-The temporal analyzer was run against the historical V1 parent outputs and stopped at seed 42 because the saved gradient artifact has no stepwise_importance_by_optimizer_step field. The existing parent results therefore support the 50-step arithmetic-mean gradient profile and cross-seed profile comparisons, but not within-window temporal reliability. Do not report temporal stability from these historical files.
-
-The full test suite on the student's Mac now passes (69 passed). The temporal script's explicit missing-data error is expected and does not invalidate those tests or the original V1 results.
-
-**Revise the immediate execution order:**
-
-1. **Latency benchmark first.** It reuses existing trained parent/pruned adapters and directly measures the proposal's engineering objective. Run the one-seed smoke test, then the full three-seed benchmark.
-2. **Second-scale DeBERTa-v3-large/RTE second.** Start with seed 42 as a feasibility gate, validate and prune before extending to seeds 123 and 999.
-3. **Temporal reliability as an optional instrumented replication.** If time and compute remain after the first two tasks, rerun the base/RTE parent training into a *new* directory with the current trainer, which stores the final-window stepwise scores. Do not overwrite the original parent results. For a consistent temporal analysis, build matching GARS allocations from these newly trained parents in another new directory, then point the temporal analyzer to those matched parent/pruned roots.
+If time and compute remain after the large-model run, train fresh base/RTE parents into a separate root, generate matched pruning exports into another separate root, and run the temporal analyzer. This is a new replicated training study, not reconstruction of the historical V1 training trajectory. Do not overwrite original artifacts or mix new gradient traces with old pruning allocations.
 
 Optional instrumented base/RTE rerun commands:
 
-\`\`\`bash
+```bash
 python experiments/train_parent_rte.py --config configs/v1_deberta_rte.json --seed 42 --device mps --output-root results/v1_parent_rte_temporal
 python experiments/train_parent_rte.py --config configs/v1_deberta_rte.json --seed 123 --device mps --output-root results/v1_parent_rte_temporal
 python experiments/train_parent_rte.py --config configs/v1_deberta_rte.json --seed 999 --device mps --output-root results/v1_parent_rte_temporal
@@ -149,8 +105,46 @@ python scripts/run_pruning_comparison.py --config configs/v1_deberta_rte.json --
 python scripts/run_pruning_comparison.py --config configs/v1_deberta_rte.json --seed 999 --device mps --parent-root results/v1_parent_rte_temporal --output-root results/v1_pruned_rte_temporal
 
 python scripts/analyze_gars_gradient_temporal_stability.py --config configs/v1_deberta_rte.json --parent-root results/v1_parent_rte_temporal --pruned-root results/v1_pruned_rte_temporal --output results/v1_pruned_rte_temporal/temporal_gradient_analysis.json
-\`\`\`
+```
 
-The temporal rerun is a supplemental replicated training study, not a reconstruction of the historical V1 training trajectory. Report it separately and compare its final-window temporal properties without replacing the original V1 results.
+### Priority 3 — second task (only after scale experiment)
 
-The DeBERTa-v3-large configuration uses the full pinned Hugging Face revision 8869586e1c6f5654a9a2a5c517fe710e24a488d0. Hugging Face's pinned config at this revision reports hidden_size 1024 and num_hidden_layers 24. https://huggingface.co/microsoft/deberta-v3-large/blob/8869586e1c6f5654a9a2a5c517fe710e24a488d0/config.json
+If compute and time remain after the second-scale experiment, repeat the base-scale parent/pruning study on GLUE MRPC using the same sentence-pair training pipeline, three seeds and matched physical budget. This tests whether the RTE result is task-specific. It is useful but secondary to demonstrating a second model scale.
+
+## Completed inference-latency benchmark
+
+The three-seed benchmark compared parent, GARS, uniform local-energy and global singular-value adapters in merged and unmerged modes at batch sizes 1, 8 and 32. All 12 method/seed runs completed with 10 warm-up and 30 timed forwards per representative batch.
+
+The key result is workload dependence:
+- Unmerged batch 8: GARS was faster in all three seeds; mean per-seed latency reduction was approximately 10.1%, with reductions of 21.0%, 2.1% and 7.0%.
+- Merged batch 32: GARS was slower in all three seeds; mean per-seed slowdown was approximately 9.0%.
+- Other GARS mode/batch combinations were mixed or showed small changes.
+
+This does not establish the proposal's 15–20% latency target. The benchmark measures synchronized model forward latency only; tokenization, collation, host-to-device transfer, model loading and adapter merge time are excluded. It is hardware/runtime-specific and does not establish production serving performance.
+
+See [the detailed latency benchmark report](v1_latency_benchmark_results.md) for aggregate medians, paired seed ratios, variability and claims boundaries.
+
+## Not recommended before submission
+
+Do not prioritize dynamic in-training pruning, optimizer-state surgery, a large random-permutation search, more beta tuning, or additional seeds on the existing base RTE setup before completing the second-scale study. They expand scope without addressing the most important remaining evidence gap: model-scale transfer.
+
+## Decision gates and reporting discipline
+
+- Keep binaries, checkpoints and generated benchmark data local and ignored by Git. Commit source code, configs and reports only.
+- Do not overwrite existing result directories. Use separate output roots for smoke tests and new replications.
+- Each model-scale result must show its parent baseline, all three policies, paired seed metrics, physical A/B parameter counts, reload status and exact pinned base revision.
+- A target is not an achievement: report actual accuracy drop and actual parameter reduction. If a scale misses the ≤1 percentage-point accuracy target, state that plainly.
+- Latency is separate from factor-parameter reduction. Report observed values; do not infer speedup from parameter counts.
+- Keep all claims limited to the models, tasks, seeds, devices and splits actually measured.
+
+## 16 November 2026 — temporal capture availability and latency results
+
+The temporal analyzer was run against the historical V1 parent outputs and stopped at seed 42 because the saved gradient artifact has no `stepwise_importance_by_optimizer_step` field. The existing parent results therefore support the 50-step arithmetic-mean gradient profile and cross-seed profile comparisons, but not within-window temporal reliability.
+
+The student reported that the full local test suite passes (69 tests). The temporal script's explicit missing-data error is expected and does not invalidate those tests or the original V1 results.
+
+The full inference benchmark subsequently completed: 12/12 method/seed runs, 3 seeds, 4 adapter variants, merged/unmerged, batch sizes 1/8/32. Its findings and measurement boundary are documented in [v1_latency_benchmark_results.md](v1_latency_benchmark_results.md). Latency is now a completed measurement, not an outstanding run.
+
+**Next action:** begin DeBERTa-v3-large/RTE with seed 42 using the commands in Priority 1. Continue to seeds 123 and 999 only after the seed-42 feasibility and reload gates pass.
+
+The DeBERTa-v3-large configuration uses the pinned Hugging Face revision `8869586e1c6f5654a9a2a5c517fe710e24a488d0`. The pinned config reports hidden size 1024 and 24 Transformer layers: https://huggingface.co/microsoft/deberta-v3-large/blob/8869586e1c6f5654a9a2a5c517fe710e24a488d0/config.json
