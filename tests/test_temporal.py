@@ -46,7 +46,10 @@ def test_temporal_summary_detects_rank_reversals() -> None:
     report = analyze_stepwise_gradient_scores(_rows(profiles), means)
 
     assert report["within_window_rank_stability"]["mean_pairwise_spearman_rho"] < 0.0
-    assert report["within_window_rank_stability"]["minimum_pairwise_spearman_rho"] == pytest.approx(-1.0)
+    assert (
+        report["within_window_rank_stability"]["minimum_pairwise_spearman_rho"]
+        == pytest.approx(-1.0)
+    )
 
 
 def test_temporal_summary_rejects_inconsistent_step_means() -> None:
