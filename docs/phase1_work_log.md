@@ -858,3 +858,35 @@ Per-seed total clipping fractions were 81.08% (42), 77.00% (123) and 88.75% (999
 Full values and claims boundaries are committed in `docs/v1_deberta_large_temporal_gradient_results.md`; experiment priorities are updated in `docs/remaining_phase1_experiment_plan.md`.
 
 **Next action:** begin the GLUE MRPC/base-model replication, seed 42 first, and use parent reload plus all three policy-export validations as feasibility gates before proceeding to seeds 123 and 999.
+
+
+## 16 November 2026 — fix Hugging Face GLUE dataset identifier for current Hub URI parser
+
+The student's first DeBERTa-v3-base/MRPC training attempt stopped during dataset loading, before model training began. The config used the legacy unnamespaced alias `glue`; the installed `datasets` / `huggingface_hub` combination generated an HF URI `hf://datasets/glue@<revision>/.huggingface.yaml`, which the current strict HF URI parser rejects because dataset repository IDs must be `namespace/name`.
+
+**Fix committed:** changed only the GLUE dataset repository identifier from `glue` to the canonical `nyu-mll/glue` in all three experiment configs:
+- `configs/v1_deberta_mrpc.json`
+- `configs/v1_deberta_rte.json`
+- `configs/v1_deberta_v3_large_rte.json`
+
+Task subsets (RTE/MRPC), model revisions, training settings, LoRA configuration, GARS settings and budgets were not changed. This is an identifier compatibility fix, not a change to the experimental method or dataset subset. The canonical Hugging Face GLUE repository documents both MRPC and RTE. The current error and workaround are also tracked in the Hugging Face Datasets issue for unnamespaced IDs.
+
+The failed run stopped inside `load_dataset` before the model training loop and before the trainer writes its parent adapter/gradient outputs. The user should pull main, validate that the MRPC dataset resolves through the namespaced identifier, and rerun seed 42. HF_TOKEN is optional for this public dataset; the unauthenticated warning only mentions Hub rate limits and is not the cause of the exception.
+
+**Verification to perform on the experiment Mac:**
+
+```bash
+git pull origin main
+
+python - <<'PY'
+from datasets import load_dataset
+
+dataset = load_dataset("nyu-mll/glue", "mrpc")
+print(dataset)
+print("train:", len(dataset["train"]))
+print("validation:", len(dataset["validation"]))
+print("columns:", dataset["train"].column_names)
+PY
+```
+
+After successful dataset resolution, rerun the MRPC seed-42 parent training command using the updated config. No existing RTE checkpoints or result artifacts need to be regenerated.
