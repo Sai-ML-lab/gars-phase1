@@ -1,114 +1,119 @@
 # Remaining Phase 1 experiment plan
 
 **Planning date:** 16 November 2026  
-**Submission deadline:** 3 December 2026, 5:30 PM IST  
-**Completed evidence:** three-seed DeBERTa-v3-base/RTE and DeBERTa-v3-large/RTE parent/pruning studies; large-model final-window temporal gradient diagnostics; gradient/spectral and cyclic-alignment diagnostics; beta sensitivity; full three-seed merged/unmerged inference-latency benchmark.
+**Submission deadline:** 3 December 2026, 5:30 PM IST
 
-## Current empirical position
+## Completed empirical work
 
-### Cross-scale compression and classification metrics
+The current Phase 1 evidence includes three three-seed experiments:
 
-The DeBERTa-v3-base/RTE and DeBERTa-v3-large/RTE experiments both achieved approximately 39.974% reduction in physical LoRA A/B factor parameters at the matched budget. Across both model scales and all three seeds, the pruned methods retained parent accuracy and macro-F1 at the reported precision.
+| Model | Task | Seeds | Parent A/B params | Pruned A/B params | Reduction |
+|---|---|---:|---:|---:|---:|
+| DeBERTa-v3-base | GLUE RTE | 42, 123, 999 | 1,179,648 | 708,096 | 39.974% |
+| DeBERTa-v3-large | GLUE RTE | 42, 123, 999 | 3,145,728 | 1,888,256 | 39.974% |
+| DeBERTa-v3-base | GLUE MRPC | 42, 123, 999 | 1,179,648 | 708,096 | 39.974% |
 
-The large-model three-seed study used revision `8869586e1c6f5654a9a2a5c517fe710e24a488d0`; all nine method/seed adapter reload validations passed. Its mean validation losses were parent 0.371230, GARS 0.371468, global singular-value 0.371283 and uniform local energy 0.370233. GARS loss was higher than both spectrum-only baselines in all three paired seeds. The base-model study had shown the reverse ordering for the mean GARS-minus-baseline loss differences. Therefore, the physical factor reduction and unchanged classification metrics transfer in the tested RTE setups, but a GARS-specific loss advantage does not transfer consistently across model scales.
+All three policies (GARS, uniform local squared-energy and global singular-value cutoff) reached the same matched physical budget within each experiment. All 27 policy/seed adapter exports across the three experiments passed reload validation.
 
-See:
-- [DeBERTa-v3-large three-seed validation and parameter results](v1_deberta_large_seeded_results.md)
-- [DeBERTa-v3-large seed-42 feasibility record](v1_deberta_large_seed42_pilot.md)
+### Classification metrics and loss
+
+All pruned methods retained parent accuracy and macro-F1 at reported precision on both RTE model scales. On MRPC, global singular-value pruning matched the parent metrics; GARS and uniform local energy had a small aggregate accuracy/F1 gain arising only from seed 42.
+
+A GARS-specific validation-loss advantage did not transfer consistently:
+- Base/RTE: GARS had lower mean loss than uniform local energy and a small lower mean loss than global singular-value pruning.
+- Large/RTE: GARS loss was higher than both spectrum-only baselines in all three paired seeds; uniform local energy had the lowest mean loss.
+- Base/MRPC: GARS and global singular-value pruning were nearly tied on mean loss; uniform local energy had slightly lower mean loss than GARS.
+
+The complete side-by-side evidence is recorded in [the cross-experiment synthesis](phase1_cross_experiment_synthesis.md), with detailed reports for [base/RTE](v1_seeded_results.md), [large/RTE](v1_deberta_large_seeded_results.md) and [base/MRPC](v1_mrpc_seeded_results.md).
+
+### Gradient temporal diagnostics
+
+The DeBERTa-v3-large/RTE temporal analysis completed using the existing 50-step per-seed profiles, with no retraining. Mean within-seed all-pair rank rho was 0.8244 and adjacent-step rho was 0.8383; the result was seed-dependent and top-three identities were less stable. Instantaneous threshold recomputation placed 82.28% of step/layer values at a clipping boundary. See [large/RTE temporal diagnostics](v1_deberta_large_temporal_gradient_results.md).
 
 ### Inference latency
 
-The full three-seed benchmark compared parent, GARS, uniform local-energy and global singular-value adapters in merged and unmerged modes at batch sizes 1, 8 and 32. It does not demonstrate a robust 15–20% latency improvement:
-- Unmerged batch 8: GARS was faster in all three seeds; mean per-seed latency reduction was approximately 10.1%.
-- Merged batch 32: GARS was slower in all three seeds; mean per-seed slowdown was approximately 9.0%.
-- Other conditions were mixed or modest.
+The full three-seed base/RTE benchmark compared parent, GARS, uniform and global adapters in merged/unmerged modes and batch sizes 1, 8 and 32. The measured effects were workload-dependent and did not establish a robust 15–20% latency improvement. Unmerged batch 8 was faster for GARS in all three seeds (mean per-seed reduction about 10.1%); merged batch 32 was slower in all three seeds (mean per-seed slowdown about 9.0%). See [the latency benchmark report](v1_latency_benchmark_results.md).
 
-The benchmark measures synchronized model-forward latency only. Tokenization, collation, host-to-device transfer, model loading and adapter merge time are excluded. It is hardware/runtime-specific and does not establish production serving performance.
+## Priority 1 — post-hoc MRPC temporal and mechanism diagnostics
 
-See [the full latency benchmark report](v1_latency_benchmark_results.md).
-
-### Temporal gradient reliability
-
-The temporal analyzer successfully ran on the existing DeBERTa-v3-large/RTE parent artifacts for all three seeds; no retraining was needed. It verified that the 50 saved stepwise profiles reproduce each seed's stored arithmetic-mean importance profile.
-
-Across seeds, the mean within-window all-pair Spearman rank correlation was 0.8244 (sample SD 0.1051), and the mean adjacent-step correlation was 0.8383 (sample SD 0.0867). The signal is moderately to strongly persistent on average, but seed-dependent: all-pair rank rho was 0.8374, 0.7134 and 0.9224 for seeds 42, 123 and 999. Adjacent top-3 Jaccard was lower (0.2918, 0.3061 and 0.6143 respectively), showing that the identity of the very highest-ranked layers is less stable than the full ranking.
-
-A diagnostic recomputation of thresholds at each captured step, using each seed's fixed calibrated `tau_base`, beta 0.5 and clipping bounds [0.80, 0.99], found that 82.28% of the 3,600 step/layer thresholds landed on a clipping boundary (25.03% lower-bound and 57.25% upper-bound hits). This is a diagnostic only: the actual V1 allocation still uses the arithmetic-mean gradient profile, not instantaneous dynamic pruning. The result characterizes saturation of the bounded threshold map, not rank changes during training or an observed performance effect.
-
-See [the detailed temporal gradient diagnostic report](v1_deberta_large_temporal_gradient_results.md). Optimizer-step pairs are sequential/autocorrelated; these descriptive correlations are not independent samples and do not support p-values or significance claims.
-
-## MRPC dataset identifier compatibility fix
-
-The initial seed-42 MRPC attempt stopped during `load_dataset`, before training began. The MRPC config used the legacy unnamespaced identifier `glue`, which the current strict Hugging Face URI parser rejects when it constructs an `hf://datasets/glue@...` URI. The three GLUE experiment configs now use the canonical repository ID `nyu-mll/glue`; no task subset, model revision or training/policy hyperparameter was changed. This canonical public dataset repository includes both MRPC and RTE. See the work-log entry for the diagnostic check to run before restarting training.
-
-## Priority 1 — second task: DeBERTa-v3-base on GLUE MRPC
-
-The MRPC config already exists at `configs/v1_deberta_mrpc.json`. It keeps the base model revision, LoRA rank/alpha, target modules, training schedule, final 50-step gradient capture, beta and physical budget consistent with the RTE base experiment while changing the task to MRPC.
-
-Begin with seed 42:
+The three MRPC parent runs were trained with the current instrumented trainer, which writes `stepwise_importance_by_optimizer_step` in each `gradient_importance.json`. Check the three files first:
 
 ```bash
-python experiments/train_parent_rte.py \
-  --config configs/v1_deberta_mrpc.json \
-  --seed 42 --device mps \
-  --output-root results/v1_parent_mrpc
+python - <<'PY'
+import json
+from pathlib import Path
+
+for seed in (42, 123, 999):
+    path = Path(f"results/v1_parent_mrpc/seed_{seed}/gradient_importance.json")
+    data = json.loads(path.read_text())
+    rows = data.get("stepwise_importance_by_optimizer_step")
+    print(f"seed={seed}: captured_steps={len(rows) if isinstance(rows, list) else None}")
+PY
 ```
 
-Validate the parent:
+If all three contain the expected 50 steps, run the temporal analyzer:
 
 ```bash
-python scripts/validate_parent_adapter.py \
+python scripts/analyze_gars_gradient_temporal_stability.py \
   --config configs/v1_deberta_mrpc.json \
-  --seed-dir results/v1_parent_mrpc/seed_42 \
-  --device mps
-```
-
-Run all three pruning methods at the matched physical budget:
-
-```bash
-python scripts/run_pruning_comparison.py \
-  --config configs/v1_deberta_mrpc.json \
-  --seed 42 --device mps \
   --parent-root results/v1_parent_mrpc \
-  --output-root results/v1_pruned_mrpc
+  --pruned-root results/v1_pruned_mrpc \
+  --output results/v1_pruned_mrpc/temporal_gradient_analysis.json
 ```
 
-If seed 42 completes training, parent reload validation and all three policy exports, continue with seeds 123 and 999. Then aggregate:
+Then run the cross-seed mechanism analysis:
 
 ```bash
-python scripts/aggregate_pruning_results.py \
-  --results-root results/v1_pruned_mrpc \
-  --seeds 42 123 999 \
-  --output results/v1_pruned_mrpc/aggregate.json
+python scripts/analyze_gars_mechanisms.py \
+  --config configs/v1_deberta_mrpc.json \
+  --parent-root results/v1_parent_mrpc \
+  --pruned-root results/v1_pruned_mrpc \
+  --output results/v1_pruned_mrpc/mechanism_analysis.json
 ```
 
-This replication tests whether matched-budget compression and the policy comparisons observed on RTE extend to another sentence-pair classification task. Do not assume that MRPC has the same accuracy scale or that an unchanged score is guaranteed. Report all observed metrics and the actual parameter reduction.
+These analyses do not retrain models. The temporal analyzer verifies that the 50 stepwise profiles reproduce the stored mean profile and reports within-window rank reliability and threshold dynamics. The mechanism analyzer compares gradient/spectral profile consistency and allocation associations across seeds. If temporal fields are missing, do not infer temporal stability from the aggregate mean; report the limitation.
 
-## Optional follow-up — threshold saturation sensitivity
+Treat all correlation and temporal statistics as descriptive. Optimizer steps are sequential/autocorrelated, and three training seeds are a small sample. Do not add significance or causal claims.
 
-The temporal diagnostic found heavy instantaneous threshold clipping. If time remains after the MRPC feasibility run, consider a controlled *post-hoc* sensitivity study using the saved large-model parent spectra and final-window gradient means. Specify the alternative clipping/saturation policy before evaluating it, match the same physical A/B budget, retain the current V1 result as the frozen reference and label all validation comparisons exploratory. Do not silently retune beta or clipping bounds on the same validation set and report the resulting best value as unbiased performance. This is optional, and MRPC task replication has higher priority.
+## Priority 2 — freeze the Phase 1 evidence and finalize the report
+
+Once the optional MRPC diagnostics are complete:
+1. Freeze the experimental configs and all reported metrics. Do not tune beta or clipping thresholds against the same validation splits.
+2. Reconcile the final report with [the cross-experiment synthesis](phase1_cross_experiment_synthesis.md) and the detailed per-experiment reports.
+3. Clearly separate physical LoRA A/B factor reduction from full-model size, forward latency and production serving performance.
+4. State that the strongest transferable result is matched-budget factor reduction with preserved classification accuracy/F1 in the tested model/task conditions.
+5. Explicitly report that GARS does not consistently beat spectrum-only baselines on validation loss, that latency effects are workload-specific, and that threshold saturation is substantial in the instantaneous diagnostic.
+6. Include limitations: three seeds, small GLUE validation splits, one hardware/runtime for latency, no independent test-set generalization, and no causal attribution.
+7. Run final `ruff check scripts src/gars tests experiments` and `python -m pytest -q` after pulling the final source/config changes.
 
 ## Not recommended before submission
 
-Do not prioritize dynamic in-training pruning, optimizer-state surgery, a large random-permutation search, another broad latency sweep, or additional beta tuning. They expand scope without directly testing cross-task transfer or resolving a well-defined evidence gap.
+Do not add another full training task, another model scale, dynamic in-training pruning, optimizer-state surgery, a large random-permutation search, broad latency retuning, or further beta/clipping optimization unless the mentor explicitly asks for it. The three matched-budget experiments already address the main cross-scale and cross-task feasibility questions. The remaining high-value work is post-hoc mechanism analysis and rigorous report synthesis.
 
-## Decision gates and reporting discipline
+## Reporting discipline
 
 - Keep binaries, checkpoints and generated benchmark data local and ignored by Git. Commit source, configs and reports only.
-- Do not overwrite existing result directories. Use separate roots for the MRPC task or any exploratory sensitivity study.
-- Each task/model result must include the parent baseline, all three policies, paired seed metrics, physical A/B parameter counts, reload status and exact pinned base revision.
+- Do not overwrite existing result directories. Any exploratory sensitivity study must use a new output root and remain clearly labeled exploratory.
+- Report actual per-seed results, aggregate mean ± sample SD, paired differences, physical A/B parameter counts, revision and reload status.
 - A target is not an achievement: report actual accuracy changes and actual parameter reduction.
-- Latency is separate from factor-parameter reduction. Report measured values; do not infer speedup from parameter counts.
-- Keep all claims limited to the models, tasks, seeds, devices and splits actually measured. Validation metrics are not test-set generalization.
+- Validation metrics are not test-set generalization.
+- Latency measures in the current benchmark are synchronized model-forward times only; they exclude tokenization, collation, host-to-device transfer, model loading and adapter merge time.
 
-## 16 November 2026 — large-model temporal diagnostics completed
+## 16 November 2026 — MRPC three-seed experiment completed
 
-The student supplied the large-model temporal-analysis output for seeds 42, 123 and 999. Each seed contained 50 saved optimizer-step gradient profiles over optimizer steps 419–468, and each stepwise arithmetic mean reproduced the stored layer-importance profile.
+The DeBERTa-v3-base/MRPC study completed for seeds 42, 123 and 999 using the pinned base revision `8ccc9b6f36199bec6961081d44eb72fb3f7353f3`. All nine policy/seed adapter reload validations passed.
 
-The mean within-seed all-pair rank correlation across the three seeds was 0.8243916 (sample SD 0.1050704); mean adjacent-step rank correlation was 0.8383141 (sample SD 0.0867266). Seed-level all-pair rho values were 0.8373934, 0.7134254 and 0.9223560 for seeds 42, 123 and 999. Adjacent top-3 Jaccard values were 0.2918367, 0.3061224 and 0.6142857. This shows average persistence of the layer ranking but meaningful seed heterogeneity and weaker stability of the top-three set.
+- Parent A/B factor count: 1,179,648.
+- Pruned A/B factor count: 708,096 for every policy and seed.
+- Reduction: 39.9739583%.
+- Validation examples: 408 per seed.
+- Parent means: accuracy 0.897059, macro-F1 0.880135, loss 0.267556.
+- GARS means: accuracy 0.897876, macro-F1 0.880991, loss 0.267861.
+- Global means: accuracy 0.897059, macro-F1 0.880135, loss 0.267846.
+- Uniform local-energy means: accuracy 0.897876, macro-F1 0.880991, loss 0.267710.
 
-At each captured optimizer step, recalculating thresholds using the seed's fixed calibrated `tau_base`, beta 0.5 and clipping bounds [0.80, 0.99] produced 3,600 step/layer values. A total of 901 (25.03%) hit the lower bound and 2,061 (57.25%) hit the upper bound: 82.28% landed at a clipping boundary. This is a diagnostic of instantaneous threshold saturation, not evidence of dynamic pruning during training; the actual V1 policy used the mean profile over the capture window.
+GARS and uniform local energy had identical per-seed accuracy/F1; their small mean accuracy/F1 gain over parent came only from seed 42. GARS-vs-global mean loss difference was +0.000015, while GARS-vs-uniform was +0.000151. These small differences do not establish superiority. The full report is [v1_mrpc_seeded_results.md](v1_mrpc_seeded_results.md).
 
-The full findings and limitations are recorded in [v1_deberta_large_temporal_gradient_results.md](v1_deberta_large_temporal_gradient_results.md).
+The canonical dataset identifier `nyu-mll/glue` was used after the legacy alias `glue` failed under the local strict Hugging Face URI parser. The identifier fix changed no task subset or training/policy hyperparameter.
 
-**Next action:** begin the GLUE MRPC/base-model replication with seed 42 and the feasibility gates above. The remaining submission time should be used to strengthen task transfer rather than rerun already completed RTE experiments.
+**Next action:** run the no-retraining temporal and mechanism diagnostics on the MRPC artifacts; then freeze experiments and finalize the Phase 1 report.
