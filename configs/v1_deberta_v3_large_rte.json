@@ -7,7 +7,7 @@
     "num_transformer_layers": 24
   },
   "dataset": {
-    "name": "glue",
+    "name": "nyu-mll/glue",
     "config": "rte",
     "train_split": "train",
     "validation_split": "validation",
